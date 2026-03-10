@@ -4,10 +4,10 @@ A optimized, fully implicit solver for the 2D Burgers' equation using a Jacobian
 **Burgers' equation:**
 
 $$
-\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla)\mathbf{u} = \nu \nabla^2 \mathbf{u}
+\frac{\partial \mathcal{U}}{\partial t} + (\mathcal{U} \cdot \nabla)\mathcal{U} = \nu \nabla^2 \mathcal{U}
 $$
 
-Where $\mathbf{u} = (u, v)$ is the velocity field, and $\nu$ is the kinematic viscosity.
+Where $\mathcal{U} = (u, v)$ is the velocity field, and $\nu$ is the kinematic viscosity.
 
 **Key Features:**
 * Combines JIT-compiled JAX math with SciPy's native GMRES.
@@ -46,5 +46,5 @@ The field is defined by a superposition of four Gaussian vortices. Given the vor
 
 Let the squared distance to each center be $r_i^2 = (x - c_{x,i})^2 + (y - c_{y,i})^2$. The velocity components are:
 
-$$u(x, y) = \sum_{i=1}^{4} -\Gamma_i (y - c_{y,i}) \exp\left(-\frac{r_i^2}{R^2}\right)$$
-$$v(x, y) = \sum_{i=1}^{4} \Gamma_i (x - c_{x,i}) \exp\left(-\frac{r_i^2}{R^2}\right)$$
+$$u(x, y) = \sum_{i=1}^{4} -\Gamma_i (y - c_{y,i}) e^ {\left(-\frac{r_i^2}{R^2}\right) }$$
+$$v(x, y) = \sum_{i=1}^{4} \Gamma_i (x - c_{x,i}) e^ {\left(-\frac{r_i^2}{R^2}\right) }$$
