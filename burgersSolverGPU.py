@@ -564,14 +564,14 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
 if __name__ == "__main__":
     
     # ---- Simulation Configuration ---- #
-    SIMULATION_IC   = '4VC'           # 'TGV' (Taylor-Green Vortex), 'DSL' (Double Shear Layer), or '4VC' (4-Vortex Collision)      
+    SIMULATION_IC   = 'TGV'           # 'TGV' (Taylor-Green Vortex), 'DSL' (Double Shear Layer), or '4VC' (4-Vortex Collision)      
     PRECISION       = 'float64'
     BC_X            = PERIODIC
     BC_Y            = PERIODIC
     
     # ---- Physical Parameters ---- #
     nu              = 0.05
-    steps           = 8000
+    steps           = 10000
     Nx, Ny          = 512, 512
     Courant         = 0.7
 
@@ -596,7 +596,7 @@ if __name__ == "__main__":
     
     # ---- Plotting + I/O ---- #
     plot_steps      = 100
-    gif_fps         = 10
+    gif_fps         = 20
     displayPlot     = True
     figFolder       = "output"
 

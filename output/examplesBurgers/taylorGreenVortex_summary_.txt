@@ -11,7 +11,7 @@
   Grid          : (512, 512)
   Viscosity     : 0.05
   Courant       : 0.7
-  Time steps    : 5000
+  Time steps    : 10000
   Newton tol    : 1e-06
   Krylov tol    : 1e-06
   Max BT iters  : 15
@@ -24,18 +24,18 @@
 
 --- Time per Newton Iteration, s
   Average : 0.0042
-  Std Dev : 0.0081 (1.9094%)
-  Max     : 0.6981
+  Std Dev : 0.0063 (1.4942%)
+  Max     : 0.6941
   Min     : 0.0003
 
 --- Time per Outer Time Step, s
-  Average : 0.0091
-  Std Dev : 0.0128 (1.4120%)
-  Max     : 0.8628
-  Min     : 0.0085
+  Average : 0.0090
+  Std Dev : 0.0090 (0.9955%)
+  Max     : 0.8469
+  Min     : 0.0086
 
 --- Overall Time, s
-  Total Solver Time       : 45.4683
-  Total Wall Time         : 105.5137
-  Physical Time Simulated : 2.6355
+  Total Solver Time       : 89.9307
+  Total Wall Time         : 114.2273
+  Physical Time Simulated : 5.2709
 ==================================================

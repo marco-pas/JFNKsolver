@@ -24,18 +24,18 @@
 
 --- Time per Newton Iteration, s
   Average : 0.0045
-  Std Dev : 0.0065 (1.4450%)
-  Max     : 0.6973
+  Std Dev : 0.0065 (1.4472%)
+  Max     : 0.6982
   Min     : 0.0003
 
 --- Time per Outer Time Step, s
   Average : 0.0095
-  Std Dev : 0.0090 (0.9434%)
-  Max     : 0.8509
+  Std Dev : 0.0091 (0.9525%)
+  Max     : 0.8589
   Min     : 0.0090
 
 --- Overall Time, s
-  Total Solver Time       : 95.2286
-  Total Wall Time         : 114.0201
+  Total Solver Time       : 95.1081
+  Total Wall Time         : 113.8181
   Physical Time Simulated : 5.2709
 ==================================================
