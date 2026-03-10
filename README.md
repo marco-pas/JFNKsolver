@@ -19,8 +19,8 @@ Where $\mathcal{U} = (u, v)$ is the velocity field, and $\nu$ is the kinematic v
 
 **Initial Conditions:**
 
-$$u(x, y) = \sin(x) \cos(y)$$
-$$v(x, y) = -\cos(x) \sin(y)$$
+$$u(x, y) = \sin(x) \ \cos(y)$$
+$$v(x, y) = -\cos(x) \ \sin(y)$$
 
 # Double Shear Layer (DSL)
 ![DSL](./output/examplesBurgers/doubleShearLayer.gif)
