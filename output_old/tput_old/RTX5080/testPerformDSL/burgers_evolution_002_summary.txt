@@ -1,0 +1,41 @@
+
+==================================================
+ SOLVER PERFORMANCE SUMMARY
+==================================================
+--- Simulation Options 
+  Linearization : Finite Difference
+  Precision     : float64
+  BC on x       : periodic
+  BC on y       : periodic
+  Simulation    : DSL
+  Grid          : (512, 512)
+  Viscosity     : 0.05
+  Courant       : 0.7
+  Time steps    : 400
+  Newton tol    : 1e-06
+  Krylov tol    : 1e-06
+  Max BT iters  : 15
+
+--- Newton Iterations per Time Step
+  Average : 2.00
+  Std Dev : 0.00 (0.0000%)
+  Max     : 2
+  Min     : 2
+
+--- Time per Newton Iteration, s
+  Average : 0.0061
+  Std Dev : 0.0402 (6.6118%)
+  Max     : 1.1206
+  Min     : 0.0004
+
+--- Time per Outer Time Step, s
+  Average : 0.0135
+  Std Dev : 0.0654 (4.8438%)
+  Max     : 1.2775
+  Min     : 0.0089
+
+--- Overall Time, s
+  Total Solver Time       : 5.4011
+  Total Wall Time         : 10.0367
+  Physical Time Simulated : 0.2108
+==================================================

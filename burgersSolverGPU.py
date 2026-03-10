@@ -563,7 +563,7 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
 if __name__ == "__main__":
     
     # ---- Simulation Configuration ---- #
-    SIMULATION_IC   = 'DSL'           # 'TGV' (Taylor-Green Vortex), 'DSL' (Double Shear Layer), or '4VC' (4-Vortex Collision)      
+    SIMULATION_IC   = '4VC'           # 'TGV' (Taylor-Green Vortex), 'DSL' (Double Shear Layer), or '4VC' (4-Vortex Collision)      
     PRECISION       = 'float32'
     BC_X            = PERIODIC
     BC_Y            = PERIODIC
@@ -575,7 +575,7 @@ if __name__ == "__main__":
     Courant         = 0.7
 
     # ---- Burgers Solver ---- #
-    useAD               = False                  # True -> AD Jacobian, False -> FD Jacobian
+    useAD               = True                  # True -> AD Jacobian, False -> FD Jacobian
     verbose             = False
     maxBackTrackingIter = 15                
     
