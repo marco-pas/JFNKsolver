@@ -2,9 +2,12 @@
 A optimized, fully implicit solver for the 2D Burgers' equation using a Jacobian-Free Newton-Krylov (JFNK) method. This script benchmarks Automatic Differentiation (AD) from JAX against Finite Differences (FD) for Jacobian-vector products.
 
 **Burgers' equation:**
-$$\frac{\partial **u** }{\partial t} + (**u**  \cdot \nabla)**u**  = \nu \nabla^2 **u** $$
 
-Where $**u** = (u, v)$ is the velocity field, and $\nu$ is the kinematic viscosity.
+$$
+\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla)\mathbf{u} = \nu \nabla^2 \mathbf{u}
+$$
+
+Where $\mathbf{u} = (u, v)$ is the velocity field, and $\nu$ is the kinematic viscosity.
 
 **Key Features:**
 * Combines JIT-compiled JAX math with SciPy's native GMRES.
