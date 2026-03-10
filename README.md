@@ -15,7 +15,7 @@ Where $\mathcal{U} = (u, v)$ is the velocity field, and $\nu$ is the kinematic v
 * Test cases: Taylor-Green Vortex (TGV), Double Shear Layer (DSL), 4-Vortex Collision (4VC).
 
 # Taylor-Green Vortex (TGV)
-![TGV](./output/examplesBurgers/taylorGreenVortex.gif)
+![TGV](./output/examplesBurgers/taylorGreenVortex_.gif)
 
 **Initial Conditions:**
 
@@ -23,7 +23,7 @@ $$u(x, y) = \sin(x) \ \cos(y)$$
 $$v(x, y) = -\cos(x) \ \sin(y)$$
 
 # Double Shear Layer (DSL)
-![DSL](./output/examplesBurgers/doubleShearLayer.gif)
+![DSL](./output/examplesBurgers/doubleShearLayer_.gif)
 
 **Initial Conditions:**
 Given the steepness parameter $\rho = 30.0$ and the perturbation amplitude $\delta = 0.05$, the initial velocity field is defined as a piecewise function:
@@ -35,7 +35,7 @@ $$u(x, y) = \begin{cases} \tanh\left(\rho \left(y - \frac{\pi}{2}\right)\right) 
 $$v(x, y) = \delta \sin(x)$$
 
 # 4-Vortex Collision (4VC)
-![4VC](./output/examplesBurgers/fourVortexColl.gif)
+![4VC](./output/examplesBurgers/fourVortexColl_.gif)
 
 **Initial Conditions:**
 The field is defined by a superposition of four Gaussian vortices. Given the vortex radius $R = 0.5$, and a set of four vortices with centers $C_i = (c_{x,i}, c_{y,i})$ and circulation strengths $\Gamma_i$:
