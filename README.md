@@ -19,7 +19,7 @@ Where $\mathcal{U} = (u, v)$ is the velocity field, and $\nu$ is the kinematic v
 <p align="center">
   <img src="./output/examplesBurgers/taylorGreenVortex_.gif" alt="TGV" width="100%">
   <br>
-  <em>Simulation of the Taylor-Green Vortex evolution over time.</em>
+  <em>Fig. 1: Simulation of the Taylor-Green Vortex evolution over time.</em>
 </p>
 
 
@@ -32,7 +32,7 @@ $$v(x, y) = -\cos(x) \ \sin(y)$$
 <p align="center">
   <img src="./output/examplesBurgers/taylorGreenVortex_energy_.png" alt="TGV" width="50%">
   <br>
-  <em>Kinetic energy exponential decay for the Taylor-Green Vortex.</em>
+  <em>Fig. 2: Kinetic energy exponential decay for the Taylor-Green Vortex.</em>
 </p>
 
 # Double Shear Layer (DSL)
@@ -40,7 +40,7 @@ $$v(x, y) = -\cos(x) \ \sin(y)$$
 <p align="center">
   <img src="./output/examplesBurgers/doubleShearLayer_.gif" alt="TGV" width="100%">
   <br>
-  <em>Simulation of the Double Shear Layer evolution over time.</em>
+  <em>Fig. 3: Simulation of the Double Shear Layer evolution over time.</em>
 </p>
 
 **Initial Conditions:**
@@ -56,7 +56,7 @@ $$v(x, y) = \delta \sin(x)$$
 <p align="center">
   <img src="./output/examplesBurgers/doubleShearLayer_energy_.png" alt="TGV" width="50%">
   <br>
-  <em>Kinetic energy exponential decay for the Double Shear Layer.</em>
+  <em>Fig. 4: Kinetic energy exponential decay for the Double Shear Layer.</em>
 </p>
 
 # 4-Vortex Collision (4VC)
@@ -65,7 +65,7 @@ $$v(x, y) = \delta \sin(x)$$
 <p align="center">
   <img src="./output/examplesBurgers/fourVortexColl_.gif" alt="TGV" width="100%">
   <br>
-  <em>Simulation of the 4-Vortex Collision evolution over time.</em>
+  <em>Fig. 5: Simulation of the 4-Vortex Collision evolution over time.</em>
 </p>
 
 **Initial Conditions:**
@@ -84,5 +84,5 @@ $$v(x, y) = \sum_{i=1}^{4} \Gamma_i (x - c_{x,i}) \ e^ { - \frac{r_i^2}{R^2}  }$
 <p align="center">
   <img src="./output/examplesBurgers/fourVortexColl_energy_.png" alt="TGV" width="50%">
   <br>
-  <em>Kinetic energy exponential decay for the 4-Vortex Collision.</em>
+  <em>Fig. 6: Kinetic energy exponential decay for the 4-Vortex Collision.</em>
 </p>
