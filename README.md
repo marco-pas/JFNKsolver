@@ -46,5 +46,5 @@ The field is defined by a superposition of four Gaussian vortices. Given the vor
 
 Let the squared distance to each center be $r_i^2 = (x - c_{x,i})^2 + (y - c_{y,i})^2$. The velocity components are:
 
-$$u(x, y) = \sum_{i=1}^{4} -\Gamma_i (y - c_{y,i}) e^ {\left(-\frac{r_i^2}{R^2}\right) }$$
-$$v(x, y) = \sum_{i=1}^{4} \Gamma_i (x - c_{x,i}) e^ {\left(-\frac{r_i^2}{R^2}\right) }$$
+$$u(x, y) = \sum_{i=1}^{4} -\Gamma_i (y - c_{y,i}) \, e^ {- \frac{r_i^2}{R^2} }$$
+$$v(x, y) = \sum_{i=1}^{4} \Gamma_i (x - c_{x,i}) \, e^ { - \frac{r_i^2}{R^2}  }$$
