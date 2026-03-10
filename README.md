@@ -15,11 +15,18 @@ Where $\mathbf{u} = (u, v)$ is the velocity field, and $\nu$ is the kinematic vi
 ![TGV](./output/examplesBurgers/taylorGreenVortex.gif)
 
 **Initial Conditions:**
+
 $$u(x, y) = \sin(x) \cos(y)$$
 $$v(x, y) = -\cos(x) \sin(y)$$
 
 # Double Shear Layer (DSL)
 ![DSL](./output/examplesBurgers/doubleShearLayer.gif)
+
+**Initial Conditions:**
+Given the steepness parameter $\rho = 30.0$ and the perturbation amplitude $\delta = 0.05$, the initial velocity field is defined as a piecewise function:
+
+$$u(x, y) = \begin{cases} \tanh\left(\rho \left(y - \frac{\pi}{2}\right)\right) & \text{if } y \le \pi \\ \tanh\left(\rho \left(\frac{3\pi}{2} - y\right)\right) & \text{if } y > \pi \end{cases}$$
+$$v(x, y) = \delta \sin(x)$$
 
 $$u(x, y) = \begin{cases} \tanh\left(\rho \left(y - \frac{\pi}{2}\right)\right) & \text{if } y \le \pi \\ \tanh\left(\rho \left(\frac{3\pi}{2} - y\right)\right) & \text{if } y > \pi \end{cases}$$
 $$v(x, y) = \delta \sin(x)$$
