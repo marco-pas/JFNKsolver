@@ -331,13 +331,14 @@ def update_plot(img_u, img_v, img_mag, ax_u, ax_v, ax_mag, u, v, step, clims, bc
     img_mag.set_data(np.array(mag))
     ax_mag.set_title(f'||vel|| | Step {step}\n{bc_label}')
 
-    plt.tight_layout()
+    # plt.tight_layout()
     if displayPlot:
         plt.pause(0.01)
 
 def capture_frame(fig):
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
+    # fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
     buf.seek(0)
     return Image.open(buf).copy()
 

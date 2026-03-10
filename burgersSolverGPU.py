@@ -294,13 +294,14 @@ def update_plot(img_u, img_v, img_mag, ax_u, ax_v, ax_mag, u, v, step, clims, bc
     ax_v.set_title(f'v(x,y) | Step {step}\n{bc_label}')
     img_mag.set_data(np.array(mag))
     ax_mag.set_title(f'||vel|| | Step {step}\n{bc_label}')
-    plt.tight_layout()
+    # plt.tight_layout()
     if displayPlot:
         plt.pause(0.01)
 
 def capture_frame(fig):
     buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
+    # fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
+    fig.savefig(buf, format='png', dpi=90)
     buf.seek(0)
     return Image.open(buf).copy()
 
@@ -564,13 +565,13 @@ if __name__ == "__main__":
     
     # ---- Simulation Configuration ---- #
     SIMULATION_IC   = '4VC'           # 'TGV' (Taylor-Green Vortex), 'DSL' (Double Shear Layer), or '4VC' (4-Vortex Collision)      
-    PRECISION       = 'float32'
+    PRECISION       = 'float64'
     BC_X            = PERIODIC
     BC_Y            = PERIODIC
     
     # ---- Physical Parameters ---- #
     nu              = 0.05
-    steps           = 400
+    steps           = 8000
     Nx, Ny          = 512, 512
     Courant         = 0.7
 
@@ -594,7 +595,7 @@ if __name__ == "__main__":
         raise ValueError('Choose different Precision')
     
     # ---- Plotting + I/O ---- #
-    plot_steps      = 20
+    plot_steps      = 100
     gif_fps         = 10
     displayPlot     = True
     figFolder       = "output"
