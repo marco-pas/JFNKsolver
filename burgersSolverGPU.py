@@ -10,8 +10,13 @@ import numpy as np
 from functools import partial as ft_partial
 from numpy.linalg import norm
 from PIL import Image
-from scipy.sparse.linalg import LinearOperator
-from scipy.sparse.linalg import gmres as gmres_scipy
+
+import cupy as cp
+import cupyx.scipy.sparse.linalg as cupy_spla
+from jax import dlpack as jax_dlpack
+
+# Use JAX's native sparse solvers to keep everything on the GPU
+import jax.scipy.sparse.linalg as jax_spla
 
 plt.rcParams.update({
     "font.family": "serif",
@@ -23,25 +28,8 @@ plt.rcParams.update({
     "font.size": 12
 })
 
-'''
-BURGERS' SOLVER using Jacobian-Free Newton-Krylov (JFNK)
-Both Finite Difference (FD) and Automatic Differentiation (AD) Jacobian-vector products
-
-d/dt u = -u * d/dx u - v * d/dy u + nu * d^2/dx^2 u
-d/dt v = -v * d/dy v - u * d/dx v + nu * d/dy^2 v
-
-Boundary condition flags (set in __main__):
-  BC_X : 'dirichlet' | 'periodic'   (axis=0, x-direction)
-  BC_Y : 'dirichlet' | 'periodic'   (axis=1, y-direction)
-
-Precision flag (set in __main__):
-  PRECISION : 'float32' | 'float64'
-  For float64, JAX x64 mode is enabled automatically.
-'''
-
 DIRICHLET = 'dirichlet'
 PERIODIC  = 'periodic'
-
 
 # -------- precision helper ------
 def configure_precision(precision: str):
@@ -52,7 +40,6 @@ def configure_precision(precision: str):
         return jnp.float32
     else:
         raise ValueError(f"Unknown precision '{precision}'. Use 'float32' or 'float64'.")
-
 
 # -------- increment GIF path --------
 def next_gif_path(base: str = 'burgers_evolution') -> str:
@@ -66,7 +53,6 @@ def next_gif_path(base: str = 'burgers_evolution') -> str:
         if n not in used:
             return f'{base}_{n:03d}.gif'
     raise RuntimeError("All GIF slots _001–_999 are taken. Clean up old files.")
-
 
 #  ---------- ICs / BCs  --------
 def get_initial_conditions(X, Y, dtype, sim_type):
@@ -107,7 +93,6 @@ def apply_BC(field, bc_x, bc_y):
         field = field.at[:,  0].set(0.0)
         field = field.at[:, -1].set(0.0)
     return field
-
 
 #  -------- PDE components ------------
 def calc_dt(vec1, vec2, dx1, dx2, nu, C=0.7, offset=1e-12):
@@ -199,32 +184,21 @@ def plot_energy(energy_history, dt_history, gif_path):
     plt.close(fig)
     print(f"Energy plot saved -> {energy_path}")
 
-
 #  ------------ Jacobian-vector products (FD and AD) ---------------
-
 def JacobianActionFD(u, v, F_u, F_v, Nx, Ny, perturb, dt, nu, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
     NxNy = Nx * Ny
     du = perturb[:NxNy].reshape((Nx, Ny))
     dv = perturb[NxNy:].reshape((Nx, Ny))
 
-    # @@ problematic part about finite difference!!!!
-    # @@ epsilon is always quite arbitrary in the Gateaux Derivative
-    # @@ differentiate the nonlinear residual equations with respect to the velocity (u,v) at every Newton iteration.
-    #   F1(u_k, u_old) = u_k - u_old + dt ( advection + diffusion ) --> nonlinear function
-    #   F2(v_k, v_old) = v_k - v_old + dt ( advection + diffusion ) --> nonlinear function
-    #   F = ( F1, F2 )
-    #   X = ( x_k, v_k )
-    #   J = dF / dX_k --> we dont really need this matrix, GMRES only needs J * pert_vel to solve the problem
-    #   J * pert_vel can be approximated via FD as lim eps -> 0 of F(X_k - eps * pert_vel ) - F(X_k) / eps
-    # ----> only problem is choosing eps so that is actually makes thing work well
-
     mach_eps = jnp.finfo(u.dtype).eps
     b = jnp.sqrt(mach_eps)
 
-    state_norm   = jnp.linalg.norm(jnp.concatenate([u.ravel(), v.ravel()]))
-    perturb_norm = jnp.linalg.norm(perturb)
-    safe_perturb_norm = jnp.where(perturb_norm > 0.0, perturb_norm, 1.0)
-    eps = b * jnp.maximum(1.0, state_norm) / safe_perturb_norm
+    state_norm = jnp.linalg.norm(jnp.concatenate([u.ravel(), v.ravel()]))
+    
+    # FIX: Remove perturb_norm. GMRES internal vectors are normalized to ~1.0 anyway.
+    # This keeps eps constant relative to the input vector, ensuring strict JAX linearity.
+    eps = b * jnp.maximum(1.0, state_norm) 
+    
     eps_max = jnp.sqrt(b)
     eps = jnp.clip(eps, b, eps_max)
     eps = jnp.where(jnp.isfinite(eps), eps, b)
@@ -245,7 +219,6 @@ def JacobianActionFD(u, v, F_u, F_v, Nx, Ny, perturb, dt, nu, dx, dy, bc_x=DIRIC
 
     return concatenateJnp(Jv_u, Jv_v)
 
-# Flat residual evaluator for the AD graph
 def residual_flat(state, u_old, v_old, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny):
     u_ = state[:Nx*Ny].reshape((Nx, Ny))
     v_ = state[Nx*Ny:].reshape((Nx, Ny))
@@ -260,7 +233,6 @@ def residual_flat(state, u_old, v_old, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny):
     
     return concatenateJnp(F_u_, F_v_)
 
-# Jitted AD Jacobian-Vector Product
 @ft_partial(jax.jit, static_argnums=(9, 10, 11, 12))
 def JacobianActionAD_jit(u_k, v_k, u_old, v_old, perturb, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny):
     state_k = concatenateJnp(u_k, v_k)
@@ -268,11 +240,6 @@ def JacobianActionAD_jit(u_k, v_k, u_old, v_old, perturb, dt, nu, dx, dy, bc_x, 
         return residual_flat(s, u_old, v_old, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny)
     _, jvp_result = jax.jvp(F_flat, (state_k,), (perturb,))
     return jvp_result
-
-
-def gmres_callback(rk):
-    residuals.append(rk)
-    print(f"  GMRES iter {len(residuals):3d}: residual = {rk:.3e}")
 
 
 # ------ Plotting -------------             
@@ -321,16 +288,12 @@ def init_plot(u0, v0, xi, xf, yi, yf, bc_x, bc_y):
 
 def update_plot(img_u, img_v, img_mag, ax_u, ax_v, ax_mag, u, v, step, clims, bc_label, displayPlot=True):
     mag = vel_magnitude(u, v)
-
     img_u.set_data(np.array(u))
     ax_u.set_title(f'u(x,y) | Step {step}\n{bc_label}')
-
     img_v.set_data(np.array(v))
     ax_v.set_title(f'v(x,y) | Step {step}\n{bc_label}')
-
     img_mag.set_data(np.array(mag))
     ax_mag.set_title(f'||vel|| | Step {step}\n{bc_label}')
-
     plt.tight_layout()
     if displayPlot:
         plt.pause(0.01)
@@ -355,84 +318,51 @@ def save_gif(frames, path='burgers_evolution_001.gif', fps=6):
     )
     print(f"GIF saved -> {path}  ({len(frames)} frames @ {fps} fps)")
 
-
 # Function to run all the simulation
-def runSimulation(PRECISION, 
-                  BC_X, 
-                  BC_Y, 
-                  SIMULATION_IC, 
-                  verbose, 
-                  useAD,
-                  maxBackTrackingIter,
-                  nu, 
-                  steps, 
-                  Nx, 
-                  Ny, 
-                  Courant, 
-                  KrylovTol, 
-                  KrylovIter, 
-                  NewtonNonlinTol, 
-                  NewtonIter,
-                  plot_steps, 
-                  gif_fps, 
-                  displayPlot, 
-                  figFolder):
+def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackTrackingIter,
+                  nu, steps, Nx, Ny, Courant, KrylovTol, KrylovIter, NewtonNonlinTol, NewtonIter,
+                  plot_steps, gif_fps, displayPlot, figFolder):
     
     t_wall_start = time.perf_counter()
 
     dtype = configure_precision(PRECISION)
     print(f"Precision: {PRECISION}  (dtype={dtype})")
 
-    # auto-increment filename and save into
     os.makedirs(figFolder, exist_ok=True)
     gif_path = next_gif_path(f'{figFolder}/burgers_evolution')
     print(f"Output GIF: {gif_path}")
 
-    # ---- grids --------------------------------------------------------
+    # ---- grids ----
     xi, xf = 0.0, 2*np.pi
     yi, yf = 0.0, 2*np.pi
-
     x = jnp.linspace(xi, xf, Nx, endpoint=(BC_X == DIRICHLET)).astype(dtype)
     y = jnp.linspace(yi, yf, Ny, endpoint=(BC_Y == DIRICHLET)).astype(dtype)
-
     dx = float(x[1] - x[0])
     dy = float(y[1] - y[0])
-
     X, Y = jnp.meshgrid(x, y, indexing='ij')
 
-    # ---- ICs / BCs ----------------------------------------------------
+    # ---- ICs / BCs ----
     u0_raw, v0_raw = get_initial_conditions(X, Y, dtype, SIMULATION_IC)
     u0 = apply_BC(u0_raw, BC_X, BC_Y)
     v0 = apply_BC(v0_raw, BC_X, BC_Y)
     u, v = u0, v0
 
-    # ---- bake BC flags into spatial operators; JIT-compile ------------
+    # ---- JIT compiled components ----
     laplacian_jit  = jax.jit(ft_partial(laplacian,  bc_x=BC_X, bc_y=BC_Y))
     advection_jit  = jax.jit(ft_partial(advection,  bc_x=BC_X, bc_y=BC_Y))
     constructF_jit = jax.jit(constructF)
-
     JacobianActionFD_jit = jax.jit(JacobianActionFD, static_argnums=(4, 5, 11, 12))
-
-    def _scipy_matvec_fn(u, v, Nx, Ny, p, dt, nu, dx, dy, bc_x, bc_y):
-        F_u_b = constructF_jit(u, u, advection_jit(u, v, dx, dy), laplacian_jit(u, dx, dy), dt, nu)
-        F_v_b = constructF_jit(v, v, advection_jit(v, u, dx, dy), laplacian_jit(v, dx, dy), dt, nu)
-        return JacobianActionFD(u, v, F_u_b, F_v_b, Nx, Ny, p, dt, nu, dx, dy, bc_x=bc_x, bc_y=bc_y)
-
-    JacobianActionScipy_jit = jax.jit(_scipy_matvec_fn, static_argnums=(2, 3, 9, 10))
 
     print(f"BC configuration: x={BC_X}  y={BC_Y}")
     print(f"Grid: {Nx}x{Ny}   dx={dx:.4f}  dy={dy:.4f}")
 
-    # ---- init plot; capture frame 0 -----------------------------------
     fig, img_u, img_v, img_mag, ax_u, ax_v, ax_mag, clims, bc_label = init_plot(
         u0, v0, xi, xf, yi, yf, BC_X, BC_Y
     )
     gif_frames = [capture_frame(fig)]
 
-    # ---- tracking variables -------------------------------------------
     energy_history = [kinetic_energy(u, v, dx, dy)]
     dt_history     = []
-    
     newton_iters_per_step = []
     time_per_newton_iter = []
     time_per_time_step = []
@@ -441,7 +371,6 @@ def runSimulation(PRECISION,
     print("Starting Time Loop")
     for step in range(steps):
         print(f"\nStep {step+1}/{steps}")
-        
         step_start_time = time.perf_counter()
 
         dt = calc_dt(u, v, dx, dy, nu, Courant)
@@ -472,44 +401,50 @@ def runSimulation(PRECISION,
                 newton_iters_per_step.append(k + 1)
                 break
 
-            # --- Unified SciPy GMRES (FD or AD Jacobian) ---
+            # --- JAX Native GMRES ---
+            # Matvec closures capture the current nonlinear state locally
             if useAD:
-                JLinearOp = LinearOperator(
-                    (2*Nx*Ny, 2*Nx*Ny),
-                    matvec=lambda vec: np.asarray(
-                        JacobianActionAD_jit(
-                            u_k, v_k, u_old, v_old, jnp.array(vec, dtype=dtype),
-                            dt, nu, dx, dy, BC_X, BC_Y, Nx, Ny
-                        )
-                    ).copy()
-                )
+                def A_matvec_jax(vec):
+                    return JacobianActionAD_jit(u_k, v_k, u_old, v_old, vec, dt, nu, dx, dy, BC_X, BC_Y, Nx, Ny)
             else:
-                JLinearOp = LinearOperator(
-                    (2*Nx*Ny, 2*Nx*Ny),
-                    matvec=lambda vec: np.asarray(
-                        JacobianActionScipy_jit(
-                            u_k, v_k, Nx, Ny, jnp.array(vec, dtype=dtype),
-                            dt, nu, dx, dy, BC_X, BC_Y
-                        )
-                    ).copy()
-                )
+                def A_matvec_jax(vec):
+                    return JacobianActionFD_jit(u_k, v_k, F_u_k, F_v_k, Nx, Ny, vec, dt, nu, dx, dy, BC_X, BC_Y)
 
-            residuals = []
-            if verbose:
-                delta_vel, info = gmres_scipy(
-                    JLinearOp, -np.asarray(F_vec).copy(),
-                    rtol=KrylovTol, maxiter=KrylovIter, callback=gmres_callback
-                )
-                print(f"  SciPy GMRES info: {info}")
-            else:
-                delta_vel, info = gmres_scipy(
-                    JLinearOp, -np.asarray(F_vec).copy(), 
-                    rtol=KrylovTol, maxiter=KrylovIter
-                )
+            # Wrapper to bridge CuPy and JAX
+            def A_matvec_cp(vec_cp):
+                # 1. CuPy -> JAX (Zero-copy)
+                vec_jax = jax_dlpack.from_dlpack(vec_cp)
+                
+                # 2. Run the chosen JIT-compiled operator
+                res_jax = A_matvec_jax(vec_jax)
+                
+                # 3. JAX -> CuPy (Zero-copy)
+                return cp.from_dlpack(res_jax)
 
-            # ---- start the Backtracking to help solution with strong non-linearities -----
-            delta_u, delta_v = flattenJnp(jnp.array(delta_vel, dtype=dtype), Nx, Ny)
+            # Define the Linear Operator for CuPy
+            JLinearOp = cupy_spla.LinearOperator(
+                (2*Nx*Ny, 2*Nx*Ny),
+                matvec=A_matvec_cp,
+                dtype=np.float32 if PRECISION == 'float32' else np.float64
+            )
+
+            # Convert the RHS base residual (-F_k) to CuPy directly
+            F_vec_cp = cp.from_dlpack(-F_vec)
             
+            # Execute GMRES natively on the GPU via CuPy
+            delta_vel_cp, info = cupy_spla.gmres(
+                JLinearOp, F_vec_cp, rtol=KrylovTol, maxiter=KrylovIter
+            )
+            
+            # Convert the resulting perturbation vector back to JAX directly
+            delta_vel = jax_dlpack.from_dlpack(delta_vel_cp)
+
+            if verbose and info > 0:
+                print(f"  CuPy GMRES failed to converge: info={info}")
+
+            # ---- start the Backtracking -----
+            # Flatten natively on the GPU array (no np.array conversions!)
+            delta_u, delta_v = flattenJnp(delta_vel, Nx, Ny)
             alpha = 1.0
             
             for ls in range(maxBackTrackingIter):
@@ -554,11 +489,7 @@ def runSimulation(PRECISION,
         time_per_time_step.append(step_end_time - step_start_time)
 
         if (step + 1) % plot_steps == 0:
-            update_plot(
-                img_u, img_v, img_mag,
-                ax_u, ax_v, ax_mag,
-                u, v, step + 1, clims, bc_label, displayPlot 
-            )
+            update_plot(img_u, img_v, img_mag, ax_u, ax_v, ax_mag, u, v, step + 1, clims, bc_label, displayPlot)
             gif_frames.append(capture_frame(fig))
 
     print("\nDone!")
@@ -612,7 +543,6 @@ def runSimulation(PRECISION,
   Physical Time Simulated : {np.sum(np.array(dt_history)):.4f}
 {"="*50}
 """
-
     print(summary_text)
 
     txt_path = gif_path.replace('.gif', '_summary.txt')
@@ -633,15 +563,15 @@ def runSimulation(PRECISION,
 if __name__ == "__main__":
     
     # ---- Simulation Configuration ---- #
-    SIMULATION_IC   = '4VC'           # 'TGV' (Taylor-Green Vortex), 'DSL' (Double Shear Layer), or '4VC' (4-Vortex Collision)      
+    SIMULATION_IC   = 'DSL'           # 'TGV' (Taylor-Green Vortex), 'DSL' (Double Shear Layer), or '4VC' (4-Vortex Collision)      
     PRECISION       = 'float32'
     BC_X            = PERIODIC
     BC_Y            = PERIODIC
     
     # ---- Physical Parameters ---- #
     nu              = 0.05
-    steps           = 50
-    Nx, Ny          = 256, 256
+    steps           = 400
+    Nx, Ny          = 512, 512
     Courant         = 0.7
 
     # ---- Burgers Solver ---- #
@@ -669,26 +599,24 @@ if __name__ == "__main__":
     displayPlot     = True
     figFolder       = "output"
 
-    # Run simulation
-    runSimulation(
-        PRECISION=PRECISION, 
-        BC_X=BC_X, 
-        BC_Y=BC_Y, 
-        SIMULATION_IC=SIMULATION_IC,
-        verbose=verbose, 
-        useAD=useAD,
-        maxBackTrackingIter=maxBackTrackingIter,
-        nu=nu, 
-        steps=steps, 
-        Nx=Nx, 
-        Ny=Ny, 
-        Courant=Courant,
-        KrylovTol=KrylovTol, 
-        KrylovIter=KrylovIter, 
-        NewtonNonlinTol=NewtonNonlinTol, 
-        NewtonIter=NewtonIter,
-        plot_steps=plot_steps, 
-        gif_fps=gif_fps, 
-        displayPlot=displayPlot, 
-        figFolder=figFolder
-    )
+
+    runSimulation(PRECISION, 
+                  BC_X, 
+                  BC_Y, 
+                  SIMULATION_IC, 
+                  verbose, 
+                  useAD, 
+                  maxBackTrackingIter,
+                  nu, 
+                  steps, 
+                  Nx, 
+                  Ny, 
+                  Courant, 
+                  KrylovTol, 
+                  KrylovIter, 
+                  NewtonNonlinTol, 
+                  NewtonIter,
+                  plot_steps, 
+                  gif_fps, 
+                  displayPlot, 
+                  figFolder)
