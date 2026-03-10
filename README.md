@@ -10,7 +10,7 @@ $$
 Where $\mathcal{U} = (u, v)$ is the velocity field, and $\nu$ is the kinematic viscosity.
 
 **Key Features:**
-* Combines JIT-compiled JAX math with SciPy's native GMRES.
+* Combines JIT-compiled JAX math with Optimized GMRES solvers (SciPy for CPU version, CuPy for GPU version).
 * Includes Backtracking Line Search to stabilize highly non-linear shocks.
 * Test cases: Taylor-Green Vortex (TGV), Double Shear Layer (DSL), 4-Vortex Collision (4VC).
 
