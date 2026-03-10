@@ -15,15 +15,33 @@ Where $\mathcal{U} = (u, v)$ is the velocity field, and $\nu$ is the kinematic v
 * Test cases: Taylor-Green Vortex (TGV), Double Shear Layer (DSL), 4-Vortex Collision (4VC).
 
 # Taylor-Green Vortex (TGV)
-![TGV](./output/examplesBurgers/taylorGreenVortex_.gif)
+
+<p align="center">
+  <img src="./output/examplesBurgers/taylorGreenVortex_.gif" alt="TGV" width="100%">
+  <br>
+  <em>Simulation of the Taylor-Green Vortex evolution over time.</em>
+</p>
+
 
 **Initial Conditions:**
 
 $$u(x, y) = \sin(x) \ \cos(y)$$
 $$v(x, y) = -\cos(x) \ \sin(y)$$
 
+**Energy Dissipation:**
+<p align="center">
+  <img src="./output/examplesBurgers/taylorGreenVortex_energy_.png" alt="TGV" width="50%">
+  <br>
+  <em>Kinetic energy exponential decay for the Taylor-Green Vortex.</em>
+</p>
+
 # Double Shear Layer (DSL)
-![DSL](./output/examplesBurgers/doubleShearLayer_.gif)
+
+<p align="center">
+  <img src="./output/examplesBurgers/doubleShearLayer_.gif" alt="TGV" width="100%">
+  <br>
+  <em>Simulation of the Double Shear Layer evolution over time.</em>
+</p>
 
 **Initial Conditions:**
 Given the steepness parameter $\rho = 30.0$ and the perturbation amplitude $\delta = 0.05$, the initial velocity field is defined as a piecewise function:
@@ -34,8 +52,21 @@ $$v(x, y) = \delta \sin(x)$$
 $$u(x, y) = \begin{cases} \tanh\left(\rho \left(y - \frac{\pi}{2}\right)\right) & \text{if } y \le \pi \\ \tanh\left(\rho \left(\frac{3\pi}{2} - y\right)\right) & \text{if } y > \pi \end{cases}$$
 $$v(x, y) = \delta \sin(x)$$
 
+**Energy Dissipation:**
+<p align="center">
+  <img src="./output/examplesBurgers/doubleShearLayer_energy_.png" alt="TGV" width="50%">
+  <br>
+  <em>Kinetic energy exponential decay for the Double Shear Layer.</em>
+</p>
+
 # 4-Vortex Collision (4VC)
-![4VC](./output/examplesBurgers/fourVortexColl_.gif)
+
+
+<p align="center">
+  <img src="./output/examplesBurgers/fourVortexColl_.gif" alt="TGV" width="100%">
+  <br>
+  <em>Simulation of the 4-Vortex Collision evolution over time.</em>
+</p>
 
 **Initial Conditions:**
 The field is defined by a superposition of four Gaussian vortices. Given the vortex radius $R = 0.5$, and a set of four vortices with centers $C_i = (c_{x,i}, c_{y,i})$ and circulation strengths $\Gamma_i$:
@@ -48,3 +79,10 @@ Let the squared distance to each center be $r_i^2 = (x - c_{x,i})^2 + (y - c_{y,
 
 $$u(x, y) = \sum_{i=1}^{4} -\Gamma_i (y - c_{y,i}) \ e^ {- \frac{r_i^2}{R^2} }$$
 $$v(x, y) = \sum_{i=1}^{4} \Gamma_i (x - c_{x,i}) \ e^ { - \frac{r_i^2}{R^2}  }$$
+
+**Energy Dissipation:**
+<p align="center">
+  <img src="./output/examplesBurgers/fourVortexColl_energy_.png" alt="TGV" width="50%">
+  <br>
+  <em>Kinetic energy exponential decay for the 4-Vortex Collision.</em>
+</p>
