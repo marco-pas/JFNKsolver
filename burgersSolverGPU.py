@@ -322,7 +322,7 @@ def save_gif(frames, path='burgers_evolution_001.gif', fps=6):
 # Function to run all the simulation
 def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackTrackingIter,
                   nu, steps, Nx, Ny, Courant, KrylovTol, KrylovIter, NewtonNonlinTol, NewtonIter,
-                  plot_steps, gif_fps, displayPlot, figFolder):
+                  plot_steps, gif_fps, displayPlot, figFolder, save_steps, dataFolder):
     
     t_wall_start = time.perf_counter()
 
@@ -493,6 +493,25 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
             update_plot(img_u, img_v, img_mag, ax_u, ax_v, ax_mag, u, v, step + 1, clims, bc_label, displayPlot)
             gif_frames.append(capture_frame(fig))
 
+        # @@ save for comparison
+        if save_steps > 0 and (step + 1) % save_steps == 0:
+            os.makedirs(dataFolder, exist_ok=True)
+            
+            # Convert to standard CPU NumPy arrays for portable saving
+            u_np = np.array(u)
+            v_np = np.array(v)
+            
+            # Save files (e.g., time_shots/u_1024_1024_step0100.npy)
+            u_path = f"{dataFolder}/u_step{step + 1:04d}.npy"
+            v_path = f"{dataFolder}/v_step{step + 1:04d}.npy"
+            
+            np.save(u_path, u_np)
+            np.save(v_path, v_np)
+            
+            if verbose:
+                print(f"  Saved fields to {u_path} and {v_path}")
+        # @@ here
+
     print("\nDone!")
     t_wall_end = time.perf_counter()
 
@@ -571,12 +590,12 @@ if __name__ == "__main__":
     
     # ---- Physical Parameters ---- #
     nu              = 0.05
-    steps           = 10000
+    steps           = 2000
     Nx, Ny          = 512, 512
     Courant         = 0.7
 
     # ---- Burgers Solver ---- #
-    useAD               = True                  # True -> AD Jacobian, False -> FD Jacobian
+    useAD               = False                  # True -> AD Jacobian, False -> FD Jacobian
     verbose             = False
     maxBackTrackingIter = 15                
     
@@ -596,9 +615,11 @@ if __name__ == "__main__":
     
     # ---- Plotting + I/O ---- #
     plot_steps      = 100
+    save_steps      = 50
     gif_fps         = 20
     displayPlot     = True
     figFolder       = "output"
+    dataFolder      = f"data/{SIMULATION_IC}_{Nx}_{Ny}_{'AD' if useAD else 'FD'}_{PRECISION}"
 
 
     runSimulation(PRECISION, 
@@ -620,4 +641,6 @@ if __name__ == "__main__":
                   plot_steps, 
                   gif_fps, 
                   displayPlot, 
-                  figFolder)
+                  figFolder,
+                  save_steps,
+                  dataFolder)
