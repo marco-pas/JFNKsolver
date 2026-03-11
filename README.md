@@ -1,7 +1,7 @@
 # AD vs. FD JFNK Solver
 A optimized, fully implicit solver for the 2D Burgers' equation using a Jacobian-Free Newton-Krylov (JFNK) method. This script benchmarks Automatic Differentiation (AD) from JAX against Finite Differences (FD) for Jacobian-vector products.
 
-## Burgers' equation
+# Burgers' equation
 
 $$
 \frac{\partial \mathcal{U}}{\partial t} + (\mathcal{U} \cdot \nabla)\mathcal{U} = \nu \nabla^2 \mathcal{U}
@@ -14,7 +14,9 @@ Where $\mathcal{U} = (u, v)$ is the velocity field, and $\nu$ is the kinematic v
 * Includes Backtracking Line Search to stabilize highly non-linear shocks.
 * Test cases: Taylor-Green Vortex (TGV), Double Shear Layer (DSL), 4-Vortex Collision (4VC).
 
-### a. Taylor-Green Vortex (TGV)
+- - -
+
+## a. Taylor-Green Vortex (TGV)
 
 <p align="center">
   <img src="./output/examplesBurgers/taylorGreenVortex_.gif" alt="TGV" width="100%">
@@ -35,7 +37,7 @@ $$v(x, y) = -\cos(x) \ \sin(y)$$
   <em>Fig. 2: Kinetic energy exponential decay for the Taylor-Green Vortex.</em>
 </p>
 
-### b. Double Shear Layer (DSL)
+## b. Double Shear Layer (DSL)
 
 <p align="center">
   <img src="./output/examplesBurgers/doubleShearLayer_.gif" alt="TGV" width="100%">
@@ -59,7 +61,7 @@ $$v(x, y) = \delta \sin(x)$$
   <em>Fig. 4: Kinetic energy exponential decay for the Double Shear Layer.</em>
 </p>
 
-### c. 4-Vortex Collision (4VC)
+## c. 4-Vortex Collision (4VC)
 
 
 <p align="center">
@@ -86,3 +88,19 @@ $$v(x, y) = \sum_{i=1}^{4} \Gamma_i (x - c_{x,i}) \ e^ { - \frac{r_i^2}{R^2}  }$
   <br>
   <em>Fig. 6: Kinetic energy exponential decay for the 4-Vortex Collision.</em>
 </p>
+
+# Time-harmonic Maxwell equation in nonlinear media
+$$\nabla \times \nabla \times \mathbf{E} - \omega^2 \mu_0 \varepsilon(\mathbf{E}) \ \mathbf{E} = i\omega\mu_0 \mathbf{J}$$
+
+In the 2D TE (transverse electric) case, $\mathbf{E} = (E_x, E_y, 0)$, leading to a 2-component vector system. In the 2D TM (transverse magnetic) case $\mathbf{E} = (0, 0, E_z)$, reducing the equation to just a scalar equation in the $z$-direction.
+
+**TE case equation**:
+
+$$\begin{pmatrix} \partial_y(\partial_x E_y - \partial_y E_x) \\ -\partial_x(\partial_x E_y - \partial_y E_x) \end{pmatrix} - \omega^2 \mu_0 \ \varepsilon(|\mathbf{E}|^2) \begin{pmatrix} E_x \\ E_y \end{pmatrix} = i\omega\mu_0 \begin{pmatrix} J_x \\ J_y \end{pmatrix}$$
+
+**TM case equation**:
+
+$$-\nabla^2_\perp E_z - \omega^2 \mu_0 \  \varepsilon(|E_z|^2) \  E_z = i\omega\mu_0 J_z$$
+
+with $\nabla^2_\perp = \partial_x^2 + \partial_y^2$.
+
