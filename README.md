@@ -1,7 +1,7 @@
-# 2D Burgers' Equation: AD vs. FD JFNK Solver
+# AD vs. FD JFNK Solver
 A optimized, fully implicit solver for the 2D Burgers' equation using a Jacobian-Free Newton-Krylov (JFNK) method. This script benchmarks Automatic Differentiation (AD) from JAX against Finite Differences (FD) for Jacobian-vector products.
 
-**Burgers' equation:**
+## Burgers' equation
 
 $$
 \frac{\partial \mathcal{U}}{\partial t} + (\mathcal{U} \cdot \nabla)\mathcal{U} = \nu \nabla^2 \mathcal{U}
@@ -14,7 +14,7 @@ Where $\mathcal{U} = (u, v)$ is the velocity field, and $\nu$ is the kinematic v
 * Includes Backtracking Line Search to stabilize highly non-linear shocks.
 * Test cases: Taylor-Green Vortex (TGV), Double Shear Layer (DSL), 4-Vortex Collision (4VC).
 
-# Taylor-Green Vortex (TGV)
+### a. Taylor-Green Vortex (TGV)
 
 <p align="center">
   <img src="./output/examplesBurgers/taylorGreenVortex_.gif" alt="TGV" width="100%">
@@ -35,7 +35,7 @@ $$v(x, y) = -\cos(x) \ \sin(y)$$
   <em>Fig. 2: Kinetic energy exponential decay for the Taylor-Green Vortex.</em>
 </p>
 
-# Double Shear Layer (DSL)
+### b. Double Shear Layer (DSL)
 
 <p align="center">
   <img src="./output/examplesBurgers/doubleShearLayer_.gif" alt="TGV" width="100%">
@@ -59,7 +59,7 @@ $$v(x, y) = \delta \sin(x)$$
   <em>Fig. 4: Kinetic energy exponential decay for the Double Shear Layer.</em>
 </p>
 
-# 4-Vortex Collision (4VC)
+### c. 4-Vortex Collision (4VC)
 
 
 <p align="center">
