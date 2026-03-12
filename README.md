@@ -1,5 +1,5 @@
 # AD vs. FD JFNK Solver
-A optimized, fully implicit solver for non-linear PDEs a Jacobian-Free Newton-Krylov (JFNK) method. This script benchmarks Automatic Differentiation (AD) from JAX against Finite Differences (FD) for Jacobian-vector products.
+A optimized, fully implicit solver for non-linear PDEs a Jacobian-Free Newton-Krylov (JFNK) method, using Automatic Differentiation (AD) from JAX and Finite Differences (FD) for Jacobian-vector products.
 
 # Burgers' equation
 
