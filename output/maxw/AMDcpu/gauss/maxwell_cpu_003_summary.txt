@@ -1,0 +1,47 @@
+
+==================================================
+ SOLVER PERFORMANCE SUMMARY
+==================================================
+--- Simulation Options 
+  Linearization : Finite Difference
+  Precision     : float32
+  BC on x       : PEC
+  BC on y       : PEC
+  Source Type   : gaussian_center
+  Grid          : (64, 64)
+  mu0           : 1.0
+  eps0          : 1.0
+  Omega steps   : 4
+  Newton tol    : 0.01
+  Krylov tol    : 0.01
+  Max BT iters  : 15
+
+--- Newton Iterations per Omega Step
+  Average : 3.25
+  Std Dev : 0.43 (13.3235%)
+  Max     : 4
+  Min     : 3
+
+--- Final Residual Norms (||F||)
+  Average : 9.2390e-04
+  Std Dev : 2.6587e-04 (28.7768%)
+  Max     : 1.3774e-03
+  Min     : 7.0731e-04
+
+--- Time per Newton Iteration, s
+  Average : 11.0529
+  Std Dev : 8.7524 (79.1863%)
+  Max     : 19.1629
+  Min     : 0.0100
+
+--- Time per Outer Omega Step, s
+  Average : 51.9578
+  Std Dev : 9.2750 (17.8511%)
+  Max     : 61.3766
+  Min     : 42.5191
+
+--- Overall Time, s
+  Total Solver Time       : 207.8311
+  Total Wall Time         : 210.7656
+  Frequency Sweep Range   : 4 to 5
+==================================================

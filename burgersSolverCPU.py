@@ -668,7 +668,7 @@ if __name__ == "__main__":
     plot_steps      = 20
     gif_fps         = 10
     displayPlot     = True
-    figFolder       = "output"
+    figFolder       = "output/burgers"
 
     # Run simulation
     runSimulation(

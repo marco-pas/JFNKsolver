@@ -8,9 +8,8 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-import cupy as cp
-import cupyx.scipy.sparse.linalg as cupy_spla
-from jax import dlpack as jax_dlpack
+from scipy.sparse.linalg import LinearOperator
+from scipy.sparse.linalg import gmres as gmres_scipy
 
 plt.rcParams.update({
     "font.family": "serif",
@@ -23,19 +22,24 @@ plt.rcParams.update({
 
 # ----------------- File I/O Helper ----------------
 def get_next_prefix(folder: str, base: str = "maxwell") -> str:
+    """Finds the next available index for saving to prevent overwriting."""
     os.makedirs(folder, exist_ok=True)
     existing = glob.glob(os.path.join(folder, f"{base}_*_summary.txt"))
     used = set()
     for f in existing:
         basename = os.path.basename(f)
         try:
-            stem = basename.split('_')[1]
+            # Strip the suffix, then split by '_' and grab the LAST chunk
+            # e.g., "maxwell_cpu_001_summary.txt" -> "maxwell_cpu_001" -> "001"
+            stem = basename.replace('_summary.txt', '').split('_')[-1]
             used.add(int(stem))
         except (IndexError, ValueError):
             pass
+            
     for n in range(1, 1000):
         if n not in used:
             return os.path.join(folder, f"{base}_{n:03d}")
+            
     return os.path.join(folder, f"{base}_999")
 
 # -------------- Differential operators (JIT compiled) ---------------
@@ -160,12 +164,12 @@ def runSimulation(PRECISION,
     if PRECISION == 'float64':
         jax.config.update("jax_enable_x64", True)
         complex_dtype = jnp.complex128
-        cupy_dtype    = cp.complex128
+        numpy_dtype   = np.complex128
     elif PRECISION == 'float32':
         complex_dtype = jnp.complex64
-        cupy_dtype    = cp.complex64
+        numpy_dtype   = np.complex64
 
-    prefix = get_next_prefix(figFolder, "maxwell")
+    prefix = get_next_prefix(figFolder, "maxwell_cpu")
     print(f"Precision: {PRECISION} | Linearization: {'AD' if useAD else 'FD'}")
     print(f"Output files will be saved with prefix: {prefix}")
 
@@ -185,8 +189,10 @@ def runSimulation(PRECISION,
 
     is_bnd_Ex = jnp.zeros((Nx, Ny), dtype=bool).at[:,  0].set(True).at[:, -1].set(True)
     is_bnd_Ey = jnp.zeros((Nx, Ny), dtype=bool).at[0,  :].set(True).at[-1, :].set(True)
-    bnd_mask_cp = cp.asarray(np.array((is_bnd_Ex | is_bnd_Ey).ravel()).astype(
-                             np.float64 if PRECISION == 'float64' else np.float32))
+    
+    # Boundary mask native to NumPy for CPU preconditioning
+    bnd_mask_np = np.array((is_bnd_Ex | is_bnd_Ey).ravel()).astype(
+                             np.float64 if PRECISION == 'float64' else np.float32)
 
     newton_iters_per_step = []
     time_per_newton_iter  = []
@@ -212,12 +218,13 @@ def runSimulation(PRECISION,
         else:
             def A_matvec_jax_lin(vec): return JacobianActionFD_jit(state, F_lin, vec, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
 
-        def A_matvec_cp_lin(vec_cp):
-            vec_jax = jax_dlpack.from_dlpack(vec_cp)
+        # Bridge NumPy -> JAX -> NumPy for SciPy LinearOperator
+        def A_matvec_scipy_lin(vec_np):
+            vec_jax = jnp.array(vec_np, dtype=complex_dtype)
             res_jax = A_matvec_jax_lin(vec_jax)
-            return cp.from_dlpack(res_jax)
+            return np.asarray(res_jax)
 
-        JLinearOp_lin = cupy_spla.LinearOperator((2*N_pts, 2*N_pts), matvec=A_matvec_cp_lin, dtype=cupy_dtype)
+        JLinearOp_lin = LinearOperator((2*N_pts, 2*N_pts), matvec=A_matvec_scipy_lin, dtype=numpy_dtype)
 
         # ----- Preconditioner evaluated at E=0 --------
         Ex_c_lin  = state[:N_pts].reshape(Nx, Ny)
@@ -232,33 +239,34 @@ def runSimulation(PRECISION,
         diag_Ex_lin = jnp.where(is_bnd_Ex, 1.0 + 0j, diag_Ex_lin)
         diag_Ey_lin = jnp.where(is_bnd_Ey, 1.0 + 0j, diag_Ey_lin)
 
-        d_Ex_cp_lin = cp.from_dlpack(diag_Ex_lin.ravel())
-        d_Ey_cp_lin = cp.from_dlpack(diag_Ey_lin.ravel())
-        c_cp_lin    = cp.full(N_pts, c_coupling, dtype=cupy_dtype) * (1.0 - bnd_mask_cp)
+        d_Ex_np_lin = np.asarray(diag_Ex_lin.ravel())
+        d_Ey_np_lin = np.asarray(diag_Ey_lin.ravel())
+        c_np_lin    = np.full(N_pts, c_coupling, dtype=numpy_dtype) * (1.0 - bnd_mask_np)
 
-        det_cp_lin = d_Ex_cp_lin * d_Ey_cp_lin - c_cp_lin**2
-        det_cp_lin = cp.where(cp.abs(det_cp_lin) < 1e-12, 1e-12 + 0j, det_cp_lin)
+        det_np_lin = d_Ex_np_lin * d_Ey_np_lin - c_np_lin**2
+        det_np_lin = np.where(np.abs(det_np_lin) < 1e-12, 1e-12 + 0j, det_np_lin)
 
-        # Optimization: Pre-compute inverse elements to minimize GPU kernel calls inside loop
-        M_11_lin = d_Ey_cp_lin / det_cp_lin
-        M_12_lin = -c_cp_lin / det_cp_lin
-        M_22_lin = d_Ex_cp_lin / det_cp_lin
+        # Optimization: Pre-compute inverse elements to minimize kernel calls inside loop
+        M_11_lin = d_Ey_np_lin / det_np_lin
+        M_12_lin = -c_np_lin / det_np_lin
+        M_22_lin = d_Ex_np_lin / det_np_lin
 
-        def M_matvec_cp_lin(vec_cp):
-            v_Ex = vec_cp[:N_pts]
-            v_Ey = vec_cp[N_pts:]
+        def M_matvec_scipy_lin(vec_np):
+            v_Ex = vec_np[:N_pts]
+            v_Ey = vec_np[N_pts:]
             out_Ex = M_11_lin * v_Ex + M_12_lin * v_Ey
             out_Ey = M_12_lin * v_Ex + M_22_lin * v_Ey
-            return cp.concatenate([out_Ex, out_Ey])
+            return np.concatenate([out_Ex, out_Ey])
 
-        M_LinearOp_lin = cupy_spla.LinearOperator((2*N_pts, 2*N_pts), matvec=M_matvec_cp_lin, dtype=cupy_dtype)
-        F_rhs_cp_lin = cp.from_dlpack(-F_lin)
+        M_LinearOp_lin = LinearOperator((2*N_pts, 2*N_pts), matvec=M_matvec_scipy_lin, dtype=numpy_dtype)
+        F_rhs_np_lin = np.asarray(-F_lin)
         
         lin_krylov_tol = max(KrylovTol, 1e-4)
-        delta_cp_lin, info_lin = cupy_spla.gmres(JLinearOp_lin, F_rhs_cp_lin, M=M_LinearOp_lin, 
-                                                 rtol=lin_krylov_tol, restart=200, maxiter=30)
+        delta_np_lin, info_lin = gmres_scipy(JLinearOp_lin, F_rhs_np_lin, M=M_LinearOp_lin, 
+                                             rtol=lin_krylov_tol, restart=200, maxiter=30)
         
-        state = jax_dlpack.from_dlpack(delta_cp_lin)
+        # Load NumPy result back into JAX state
+        state = jnp.array(delta_np_lin, dtype=complex_dtype)
 
         initial_res_norm = None
         c1 = 1e-4  
@@ -287,12 +295,12 @@ def runSimulation(PRECISION,
             else:
                 def A_matvec_jax(vec): return JacobianActionFD_jit(state, F, vec, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
 
-            def A_matvec_cp(vec_cp):
-                vec_jax = jax_dlpack.from_dlpack(vec_cp)
+            def A_matvec_scipy(vec_np):
+                vec_jax = jnp.array(vec_np, dtype=complex_dtype)
                 res_jax = A_matvec_jax(vec_jax)
-                return cp.from_dlpack(res_jax)
+                return np.asarray(res_jax)
 
-            JLinearOp = cupy_spla.LinearOperator((2*N_pts, 2*N_pts), matvec=A_matvec_cp, dtype=cupy_dtype)
+            JLinearOp = LinearOperator((2*N_pts, 2*N_pts), matvec=A_matvec_scipy, dtype=numpy_dtype)
 
             Ex_c  = state[:N_pts].reshape(Nx, Ny)
             Ey_c  = state[N_pts:].reshape(Nx, Ny)
@@ -306,36 +314,39 @@ def runSimulation(PRECISION,
             diag_Ex = jnp.where(is_bnd_Ex, 1.0 + 0j, diag_Ex)
             diag_Ey = jnp.where(is_bnd_Ey, 1.0 + 0j, diag_Ey)
 
-            d_Ex_cp = cp.from_dlpack(diag_Ex.ravel())
-            d_Ey_cp = cp.from_dlpack(diag_Ey.ravel())
-            c_cp  = cp.full(N_pts, c_coupling, dtype=cupy_dtype) * (1.0 - bnd_mask_cp)
+            d_Ex_np = np.asarray(diag_Ex.ravel())
+            d_Ey_np = np.asarray(diag_Ey.ravel())
+            c_np    = np.full(N_pts, c_coupling, dtype=numpy_dtype) * (1.0 - bnd_mask_np)
 
-            det_cp = d_Ex_cp * d_Ey_cp - c_cp**2
-            det_cp = cp.where(cp.abs(det_cp) < 1e-12, 1e-12 + 0j, det_cp)
+            det_np = d_Ex_np * d_Ey_np - c_np**2
+            det_np = np.where(np.abs(det_np) < 1e-12, 1e-12 + 0j, det_np)
 
-            # Optimization: Pre-compute inverse elements to minimize GPU kernel calls inside loop
-            M_11 = d_Ey_cp / det_cp
-            M_12 = -c_cp / det_cp
-            M_22 = d_Ex_cp / det_cp
+            # Optimization: Pre-compute inverse elements 
+            M_11 = d_Ey_np / det_np
+            M_12 = -c_np / det_np
+            M_22 = d_Ex_np / det_np
 
-            def M_matvec_cp(vec_cp):
-                v_Ex = vec_cp[:N_pts]
-                v_Ey = vec_cp[N_pts:]
+            def M_matvec_scipy(vec_np):
+                v_Ex = vec_np[:N_pts]
+                v_Ey = vec_np[N_pts:]
                 out_Ex = M_11 * v_Ex + M_12 * v_Ey
                 out_Ey = M_12 * v_Ex + M_22 * v_Ey
-                return cp.concatenate([out_Ex, out_Ey])
+                return np.concatenate([out_Ex, out_Ey])
 
-            M_LinearOp = cupy_spla.LinearOperator((2*N_pts, 2*N_pts), matvec=M_matvec_cp, dtype=cupy_dtype)
+            M_LinearOp = LinearOperator((2*N_pts, 2*N_pts), matvec=M_matvec_scipy, dtype=numpy_dtype)
 
             krylov_tol = max(0.1 * rel_res, KrylovTol)
-            F_rhs_cp = cp.from_dlpack(-F)
-            delta_cp, info = cupy_spla.gmres(JLinearOp, F_rhs_cp, M=M_LinearOp, rtol=krylov_tol, restart=200, maxiter=30)
+            F_rhs_np = np.asarray(-F)
+            
+            delta_np, info = gmres_scipy(JLinearOp, F_rhs_np, M=M_LinearOp, rtol=krylov_tol, restart=200, maxiter=30)
 
             if verbose:
+                Jd_np = A_matvec_scipy(delta_np)
+                gmres_rel = float(np.linalg.norm(Jd_np + F_rhs_np)) / (float(np.linalg.norm(F_rhs_np)) + 1e-30)
                 status = "OK" if info == 0 else f"WARN info={info}"
-                print(f"    GMRES [{status}] tol={krylov_tol:.2e}")
+                print(f"    GMRES [{status}]  inner_rel={gmres_rel:.2e}  tol={krylov_tol:.2e}")
 
-            delta = jax_dlpack.from_dlpack(delta_cp)
+            delta = jnp.array(delta_np, dtype=complex_dtype)
 
             # Line search
             alpha = 1.0
@@ -368,25 +379,17 @@ def runSimulation(PRECISION,
             fig_fields, axes = plt.subplots(1, 3, figsize=(16, 4.5))
             ax_Ex, ax_Ey, ax_f = axes
 
-            # (J: {SIMULATION_J})
-
             im_Ex = ax_Ex.imshow(np.abs(np.array(Ex_c)).T, origin='lower', cmap='plasma', extent=[0, Lx, 0, Ly])
-            # ax_Ex.set_xlabel('x')
-            # ax_Ex.set_ylabel('y')
             ax_Ex.axis('off')
             ax_Ex.set_title(rf'$E_x$ at $\omega={omega_val:.2f}$' + '\n' + 'BC: x=PEC y=PEC')
             fig_fields.colorbar(im_Ex, ax=ax_Ex, fraction=0.046, pad=0.04)
 
             im_Ey = ax_Ey.imshow(np.abs(np.array(Ey_c)).T, origin='lower', cmap='viridis', extent=[0, Lx, 0, Ly])
-            # ax_Ey.set_xlabel('x')
-            # ax_Ey.set_ylabel('y')
             ax_Ey.axis('off')
             ax_Ey.set_title(rf'$E_y$ at $\omega={omega_val:.2f}$' + '\n' + 'BC: x=PEC y=PEC')
             fig_fields.colorbar(im_Ey, ax=ax_Ey, fraction=0.046, pad=0.04)
 
             im_f = ax_f.imshow(np.array(E_mag).T, origin='lower', cmap='magma', extent=[0, Lx, 0, Ly])
-            # ax_f.set_xlabel('x')
-            # ax_f.set_ylabel('y')
             ax_f.axis('off')
             ax_f.set_title(rf'$|\mathbf{{E}}|$ at $\omega={omega_val:.2f}$' + '\n' + 'BC: x=PEC y=PEC')
             fig_fields.colorbar(im_f, ax=ax_f, fraction=0.046, pad=0.04)
@@ -502,7 +505,7 @@ if __name__ == "__main__":
 
     # ---- Simulation Configuration ---- #
     SIMULATION_J        = 'gaussian_center'      # source term: 'dipole' or 'gaussian_center'
-    PRECISION           = 'float32'
+    PRECISION           = 'float64'
 
     # ---- Physical Parameters ---- #
     mu0                 = 1.0
@@ -510,7 +513,7 @@ if __name__ == "__main__":
     omega_start         = 4
     omega_stop          = 5
     omega_steps         = 4
-    Nx, Ny              = 128, 128
+    Nx, Ny              = 64, 64
 
     # ---- Maxwell Solver ---- #
     useAD               = False
@@ -520,15 +523,15 @@ if __name__ == "__main__":
     # ---- Solver Tolerances ---- #  
     if PRECISION == 'float64':
         KrylovTol, KrylovIter = 1e-5, 100
-        NewtonTol, NewtonIter = 1e-5, 100
+        NewtonTol, NewtonIter = 1e-5,  60
     elif PRECISION == 'float32':
         KrylovTol, KrylovIter = 1e-2, 100
-        NewtonTol, NewtonIter = 1e-2, 100
+        NewtonTol, NewtonIter = 1e-2,  60
     else:
         raise ValueError('Choose different Precision')
     
-     # ---- Plotting + I/O ---- #
-    save_field_pic      = 100
+    # ---- Plotting + I/O ---- #
+    save_field_pic      = 10
     figFolder = "output/maxw"
 
 

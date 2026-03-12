@@ -18,7 +18,7 @@ Where $\mathcal{U} = (u, v)$ is the velocity field, and $\nu$ is the kinematic v
 ## a. Taylor-Green Vortex (TGV)
 
 <p align="center">
-  <img src="./output/examplesBurgers/taylorGreenVortex_.gif" alt="TGV" width="100%">
+  <img src="./output/burgers/examplesBurgers/taylorGreenVortex_.gif" alt="TGV" width="100%">
   <br>
   <em>Fig. 1: Simulation of the Taylor-Green Vortex evolution over time.</em>
 </p>
@@ -31,7 +31,7 @@ $$v(x, y) = -\cos(x) \ \sin(y)$$
 
 **Energy Dissipation:**
 <p align="center">
-  <img src="./output/examplesBurgers/taylorGreenVortex_energy_.png" alt="TGV" width="50%">
+  <img src="./output/burgers/examplesBurgers/taylorGreenVortex_energy_.png" alt="TGV" width="50%">
   <br>
   <em>Fig. 2: Kinetic energy exponential decay for the Taylor-Green Vortex.</em>
 </p>
@@ -39,7 +39,7 @@ $$v(x, y) = -\cos(x) \ \sin(y)$$
 ## b. Double Shear Layer (DSL)
 
 <p align="center">
-  <img src="./output/examplesBurgers/doubleShearLayer_.gif" alt="TGV" width="100%">
+  <img src="./output/burgers/examplesBurgers/doubleShearLayer_.gif" alt="TGV" width="100%">
   <br>
   <em>Fig. 3: Simulation of the Double Shear Layer evolution over time.</em>
 </p>
@@ -55,7 +55,7 @@ $$v(x, y) = \delta \sin(x)$$
 
 **Energy Dissipation:**
 <p align="center">
-  <img src="./output/examplesBurgers/doubleShearLayer_energy_.png" alt="TGV" width="50%">
+  <img src="./output/burgers/examplesBurgers/doubleShearLayer_energy_.png" alt="TGV" width="50%">
   <br>
   <em>Fig. 4: Kinetic energy exponential decay for the Double Shear Layer.</em>
 </p>
@@ -64,7 +64,7 @@ $$v(x, y) = \delta \sin(x)$$
 
 
 <p align="center">
-  <img src="./output/examplesBurgers/fourVortexColl_.gif" alt="TGV" width="100%">
+  <img src="./output/burgers/examplesBurgers/fourVortexColl_.gif" alt="TGV" width="100%">
   <br>
   <em>Fig. 5: Simulation of the 4-Vortex Collision evolution over time.</em>
 </p>
@@ -83,7 +83,7 @@ $$v(x, y) = \sum_{i=1}^{4} \Gamma_i (x - c_{x,i}) \ e^ { - \frac{r_i^2}{R^2}  }$
 
 **Energy Dissipation:**
 <p align="center">
-  <img src="./output/examplesBurgers/fourVortexColl_energy_.png" alt="TGV" width="50%">
+  <img src="./output/burgers/examplesBurgers/fourVortexColl_energy_.png" alt="TGV" width="50%">
   <br>
   <em>Fig. 6: Kinetic energy exponential decay for the 4-Vortex Collision.</em>
 </p>
@@ -103,3 +103,14 @@ $$-\nabla^2_\perp E_z - \omega^2 \mu_0 \  \varepsilon(|E_z|^2) \  E_z = i\omega\
 
 with $\nabla^2_\perp = \partial_x^2 + \partial_y^2$.
 
+## a. Dipole
+
+(figure) 
+
+**Initial Conditions:** (...)
+
+## a. Gaussian
+
+(figure) 
+
+**Initial Conditions:** (...)

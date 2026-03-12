@@ -618,7 +618,7 @@ if __name__ == "__main__":
     save_steps      = 50
     gif_fps         = 20
     displayPlot     = True
-    figFolder       = "output"
+    figFolder       = "output/burgers"
     dataFolder      = f"data/{SIMULATION_IC}_{Nx}_{Ny}_{'AD' if useAD else 'FD'}_{PRECISION}"
 
 
