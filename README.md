@@ -106,10 +106,6 @@ with $\nabla^2_\perp = \partial_x^2 + \partial_y^2$.
 ## a. Dipole
 
 <p align="center">
-  <img src="./output/maxw/examplesMaxw/dipole_400.png" alt="TGV" width="100%">
-</p>
-
-<p align="center">
   <img src="./output/maxw/examplesMaxw/dipole_425.png" alt="TGV" width="100%">
 </p>
 
@@ -127,15 +123,11 @@ with $\nabla^2_\perp = \partial_x^2 + \partial_y^2$.
 ## a. Gaussian
 
 <p align="center">
-  <img src="./output/maxw/examplesMaxw/dipole_400.png" alt="TGV" width="100%">
+  <img src="./output/maxw/examplesMaxw/gauss_425.png" alt="TGV" width="100%">
 </p>
 
 <p align="center">
-  <img src="./output/maxw/examplesMaxw/dipole_425.png" alt="TGV" width="100%">
-</p>
-
-<p align="center">
-  <img src="./output/maxw/examplesMaxw/dipole_450.png" alt="TGV" width="100%">
+  <img src="./output/maxw/examplesMaxw/gauss_450.png" alt="TGV" width="100%">
     <br>
   <em>Fig. 8: Field distribution taking the magnitude of the complex E-field components in the Gaussian case.</em>
 </p>
