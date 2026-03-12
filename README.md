@@ -105,12 +105,40 @@ with $\nabla^2_\perp = \partial_x^2 + \partial_y^2$.
 
 ## a. Dipole
 
-(figure) 
+<p align="center">
+  <img src="./output/maxw/examplesMaxw/dipole_400.png" alt="TGV" width="100%">
+</p>
+
+<p align="center">
+  <img src="./output/maxw/examplesMaxw/dipole_425.png" alt="TGV" width="100%">
+</p>
+
+<p align="center">
+  <img src="./output/maxw/examplesMaxw/dipole_450.png" alt="TGV" width="100%">
+    <br>
+  <em>Fig. 7: Field distribution taking the magnitude of the complex E-field components in the Dipole case.</em>
+</p>
+
 
 **Initial Conditions:** (...)
 
+
+
 ## a. Gaussian
 
-(figure) 
+<p align="center">
+  <img src="./output/maxw/examplesMaxw/dipole_400.png" alt="TGV" width="100%">
+</p>
+
+<p align="center">
+  <img src="./output/maxw/examplesMaxw/dipole_425.png" alt="TGV" width="100%">
+</p>
+
+<p align="center">
+  <img src="./output/maxw/examplesMaxw/dipole_450.png" alt="TGV" width="100%">
+    <br>
+  <em>Fig. 8: Field distribution taking the magnitude of the complex E-field components in the Gaussian case.</em>
+</p>
+
 
 **Initial Conditions:** (...)
