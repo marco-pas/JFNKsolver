@@ -97,40 +97,44 @@ In the 2D TE (transverse electric) case, $\mathbf{E} = (E_x, E_y, 0)$, leading t
 
 $$\begin{pmatrix} \partial_y(\partial_x E_y - \partial_y E_x) \\ -\partial_x(\partial_x E_y - \partial_y E_x) \end{pmatrix} - \omega^2 \mu_0 \ \varepsilon(|\mathbf{E}|^2) \begin{pmatrix} E_x \\ E_y \end{pmatrix} = i\omega\mu_0 \begin{pmatrix} J_x \\ J_y \end{pmatrix}$$
 
-**TM case equation**:
-
-$$-\nabla^2_\perp E_z - \omega^2 \mu_0 \  \varepsilon(|E_z|^2) \  E_z = i\omega\mu_0 J_z$$
-
-with $\nabla^2_\perp = \partial_x^2 + \partial_y^2$.
-
-## a. Dipole
-
-<p align="center">
-  <img src="./output/maxw/examplesMaxw/dipole_425.png" alt="TGV" width="100%">
-</p>
-
-<p align="center">
-  <img src="./output/maxw/examplesMaxw/dipole_450.png" alt="TGV" width="100%">
-    <br>
-  <em>Fig. 7: Field distribution taking the magnitude of the complex E-field components in the Dipole case.</em>
-</p>
-
-
-**Initial Conditions:** (...)
-
-
 
 ## a. Gaussian
 
-<p align="center">
-  <img src="./output/maxw/examplesMaxw/gauss_425.png" alt="TGV" width="100%">
-</p>
+- - -
 
 <p align="center">
-  <img src="./output/maxw/examplesMaxw/gauss_450.png" alt="TGV" width="100%">
+  <img src="./output/maxw/examplesMaxw/gauss/maxwell_001_w8_fields_9up.png" alt="TGV" width="100%">
+</p>
+
+- - -
+
+<p align="center">
+  <img src="./output/maxw/examplesMaxw/gauss/maxwell_001_w15_fields_9up.png" alt="TGV" width="100%">
     <br>
   <em>Fig. 8: Field distribution taking the magnitude of the complex E-field components in the Gaussian case.</em>
 </p>
 
 
 **Initial Conditions:** (...)
+
+
+
+
+## b. Dipole
+
+<p align="center">
+  <img src="./output/maxw/examplesMaxw/dipole/maxwell_001_w2_fields_9up.png" alt="TGV" width="100%">
+</p>
+
+- - -
+
+<p align="center">
+  <img src="./output/maxw/examplesMaxw/dipole/maxwell_001_w11_fields_9up.png" alt="TGV" width="100%">
+    <br>
+  <em>Fig. 7: Field distribution taking the magnitude of the complex E-field components in the Dipole case.</em>
+</p>
+
+- - -
+
+**Initial Conditions:** (...)
+
