@@ -371,6 +371,7 @@ def runSimulation(PRECISION,
             # (J: {SIMULATION_J})
 
             im_Ex = ax_Ex.imshow(np.abs(np.array(Ex_c)).T, origin='lower', cmap='plasma', extent=[0, Lx, 0, Ly])
+            im_Ex = ax_Ex.imshow(np.abs(np.array(Ex_c)).T, origin='lower', cmap='plasma', extent=[0, Lx, 0, Ly], vmin=0.0, vmax=0.1)
             # ax_Ex.set_xlabel('x')
             # ax_Ex.set_ylabel('y')
             ax_Ex.axis('off')
@@ -502,15 +503,15 @@ if __name__ == "__main__":
 
     # ---- Simulation Configuration ---- #
     SIMULATION_J        = 'gaussian_center'      # source term: 'dipole' or 'gaussian_center'
-    PRECISION           = 'float32'
+    PRECISION           = 'float64'
 
     # ---- Physical Parameters ---- #
     mu0                 = 1.0
     eps0                = 1.0
     omega_start         = 4
-    omega_stop          = 5
-    omega_steps         = 4
-    Nx, Ny              = 128, 128
+    omega_stop          = 20
+    omega_steps         = 17
+    Nx, Ny              = 256, 256
 
     # ---- Maxwell Solver ---- #
     useAD               = False
@@ -528,7 +529,7 @@ if __name__ == "__main__":
         raise ValueError('Choose different Precision')
     
      # ---- Plotting + I/O ---- #
-    save_field_pic      = 100
+    save_field_pic      = 1
     figFolder = "output/maxw"
 
 
