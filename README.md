@@ -14,7 +14,7 @@ $$\mathbf{F}(\mathbf{x}) = 0$$
 
 The Newton linearization reads:
 
-$$\mathbf{J}(\mathbf{x}^k) \, \delta \mathbf{x} = -\mathbf{F}(\mathbf{x}^k), \qquad \mathbf{x}^{k+1} = \mathbf{x}^k + \alpha \, \delta \mathbf{x}$$
+$$\mathbf{J}(\mathbf{x}^k) \  \delta \mathbf{x} = -\mathbf{F}(\mathbf{x}^k), \qquad \mathbf{x}^{k+1} = \mathbf{x}^k + \alpha \  \delta \mathbf{x}$$
 
 where $\mathbf{J} = \partial \mathbf{F} / \partial \mathbf{x}$ is the Jacobian and $\alpha \in (0, 1]$ is a step length determined by backtracking line search. The problem converges when $\|\mathbf{F}(\mathbf{x}^k)\| \leq \tau_{\epsilon}$, where $\tau_\epsilon$ is the Newton tolerance, which can be defined and depends on the precision used, or if the Newton solver has reached a maximum number of iterations.
 
@@ -26,7 +26,7 @@ $$
 \mathcal{K} ( \mathbf{J}, \mathbf{r}_0) = \text{span}  \left[ \mathbf{r}_0, \mathbf{J}\mathbf{r}_0, \mathbf{J}^2\mathbf{r}_0, \dots \right]
 $$
 
-At every iteration of the outer loop, GMRES iterates internally to find the vector $\mathbf{p}$ that best minimizes $\lVert \mathbf{J}\,\delta \mathbf{x} + \mathbf{F} \rVert_2$ so the actual Jacobian is not needed explicitly — only the product. When GMRES converges, it outputs $\delta \mathbf{x}$ (is that correct?).
+At every iteration of the outer loop, GMRES iterates internally to find the vector $\mathbf{p}$ that best minimizes $\lVert \mathbf{J}\ \delta \mathbf{x} + \mathbf{F} \rVert_2$ so the actual Jacobian is not needed explicitly — only the product. When GMRES converges, it outputs $\delta \mathbf{x}$ (is that correct?).
 
 ### 3. Jacobian-Vector Products: AD vs. FD
 
@@ -52,7 +52,7 @@ computed exactly (up to floating-point arithmetic) via `jax.jvp`. This is the di
 
 After each GMRES solve, the step $\delta\mathbf{x}$ is accepted only if a sufficient decrease condition is met:
 
-$$\|\mathbf{F}(\mathbf{x}^k + \alpha \, \delta\mathbf{x})\| < \|\mathbf{F}(\mathbf{x}^k)\|$$
+$$\|\mathbf{F}(\mathbf{x}^k + \alpha \  \delta\mathbf{x})\| < \|\mathbf{F}(\mathbf{x}^k)\|$$
 
 Otherwise $\alpha \leftarrow \alpha/2$, up to a maximum number of halvings. This stabilizes convergence for highly nonlinear problems (e.g., shock formation in Burgers', near-resonance behavior in Maxwell's). This helps significantly, as sometimes it is necessary to tweak the tolerance to make the problem converge — the Newton loop can occasionally get stuck, or the error can begin to diverge at some point within it.
 
@@ -81,9 +81,9 @@ where $\mathcal{U} = (u, v)$ is the 2D velocity field and $\nu$ is the kinematic
 
 Using a first-order implicit Euler time discretization, the nonlinear residual at Newton iteration $k$ for each velocity component is:
 
-$$\mathbf{F}^u(\mathbf{u}^k, \mathbf{v}^k) = \mathbf{u}^k - \mathbf{u}^{n} + \Delta t \left[ \mathbf{A}(\mathbf{u}^k, \mathbf{v}^k) - \nu \, \mathbf{L}(\mathbf{u}^k) \right]$$
+$$\mathbf{F}^u(\mathbf{u}^k, \mathbf{v}^k) = \mathbf{u}^k - \mathbf{u}^{n} + \Delta t \left[ \mathbf{A}(\mathbf{u}^k, \mathbf{v}^k) - \nu \  \mathbf{L}(\mathbf{u}^k) \right]$$
 
-$$\mathbf{F}^v(\mathbf{u}^k, \mathbf{v}^k) = \mathbf{v}^k - \mathbf{v}^{n} + \Delta t \left[ \mathbf{A}(\mathbf{v}^k, \mathbf{u}^k) - \nu \, \mathbf{L}(\mathbf{v}^k) \right]$$
+$$\mathbf{F}^v(\mathbf{u}^k, \mathbf{v}^k) = \mathbf{v}^k - \mathbf{v}^{n} + \Delta t \left[ \mathbf{A}(\mathbf{v}^k, \mathbf{u}^k) - \nu \  \mathbf{L}(\mathbf{v}^k) \right]$$
 
 where $\mathbf{A}$ is the second-order central difference advection operator and $\mathbf{L}$ is the second-order central difference Laplacian. The full state vector $\mathbf{x}^k = (\mathbf{u}^k, \mathbf{v}^k)^T \in \mathbb{R}^{2N_x N_y}$ and $\mathbf{F} = (\mathbf{F}^u, \mathbf{F}^v)^T$.
 
@@ -97,7 +97,7 @@ $$\Delta t = C \cdot \min\left(\frac{\Delta x}{\max|u|},\ \frac{\Delta y}{\max|v
 - JIT-compiled JAX spatial operators with BC flags baked in at compile time.
 - GMRES solved by SciPy (CPU) or CuPy (GPU).
 - Backtracking line search to stabilize shock formation.
-- u-field GIF output and kinetic energy plot ($E(t) = \frac{1}{2}\iint (u^2 + v^2) \, dx \, dy$).
+- u-field GIF output and kinetic energy plot ($E(t) = \frac{1}{2}\iint (u^2 + v^2) \  dx \  dy$).
 
 ---
 
@@ -135,7 +135,7 @@ The TGV is a classical benchmark for viscous flow solvers.
 
 **Initial Conditions:** Given steepness parameter $\rho = 30$ and perturbation amplitude $\delta = 0.05$:
 
-$$u(x, y) = \begin{cases} \tanh\!\left(\rho \left(y - \dfrac{\pi}{2}\right)\right) & y \leq \pi \\[6pt] \tanh\!\left(\rho \left(\dfrac{3\pi}{2} - y\right)\right) & y > \pi \end{cases}, \qquad v(x, y) = \delta \sin(x)$$
+$$u(x, y) = \begin{cases} \tanh\!\left(\rho \left(y - \dfrac{\pi}{2}\right)\right) & y \leq \pi \\\ \tanh\!\left(\rho \left(\dfrac{3\pi}{2} - y\right)\right) & y > \pi \end{cases}, \qquad v(x, y) = \delta \sin(x)$$
 
 The DSL features two thin shear interfaces that are Kelvin-Helmholtz unstable, making it the most numerically challenging case for the nonlinear solver. The sinusoidal perturbation on $v$ triggers the instability, leading to vortical structures. This is a stress test for the nonlinear solver, as near-singular gradient regions form rapidly.
 
@@ -168,7 +168,7 @@ The DSL features two thin shear interfaces that are Kelvin-Helmholtz unstable, m
 
 With $r_i^2 = (x - c_{x,i})^2 + (y - c_{y,i})^2$:
 
-$$u(x, y) = \sum_{i=1}^{4} -\Gamma_i \,(y - c_{y,i})\, e^{-r_i^2 / R^2}, \qquad v(x, y) = \sum_{i=1}^{4} \Gamma_i \,(x - c_{x,i})\, e^{-r_i^2 / R^2}$$
+$$u(x, y) = \sum_{i=1}^{4} -\Gamma_i \ (y - c_{y,i})\  e^{-r_i^2 / R^2}, \qquad v(x, y) = \sum_{i=1}^{4} \Gamma_i \ (x - c_{x,i})\  e^{-r_i^2 / R^2}$$
 
 The alternating-sign vortices induce mutual attraction and repulsion, producing a highly nonlinear collision event. This case exercises the backtracking line search most aggressively.
 
@@ -184,7 +184,7 @@ The alternating-sign vortices induce mutual attraction and repulsion, producing 
 
 ## II. Time-Harmonic Maxwell's Equations in Nonlinear Media
 
-$$\nabla \times \nabla \times \mathbf{E} - \omega^2 \mu_0 \,\varepsilon(\mathbf{E})\, \mathbf{E} = i\omega\mu_0 \mathbf{J}$$
+$$\nabla \times \nabla \times \mathbf{E} - \omega^2 \mu_0 \ \varepsilon(\mathbf{E})\  \mathbf{E} = i\omega\mu_0 \mathbf{J}$$
 
 In the 2D **TE (Transverse Electric)** case, $\mathbf{E} = (E_x, E_y, 0)$, leading to a 2-component complex vector system. The **nonlinear permittivity** is a Kerr-type model with complex loss:
 
@@ -194,9 +194,9 @@ $$\varepsilon(\mathbf{E}) = \varepsilon_0 (1 - 0.05i)\left(1 + \chi \sqrt{|E_x|^
 
 After expanding the curl-curl operator in 2D TE, the residual equations for the two field components are:
 
-$$F_x = \partial_y(\partial_x E_y - \partial_y E_x) - \omega^2 \mu_0 \,\varepsilon(|\mathbf{E}|^2)\, E_x - i\omega\mu_0 J_x$$
+$$F_x = \partial_y(\partial_x E_y - \partial_y E_x) - \omega^2 \mu_0 \ \varepsilon(|\mathbf{E}|^2)\  E_x - i\omega\mu_0 J_x$$
 
-$$F_y = -\partial_x(\partial_x E_y - \partial_y E_x) - \omega^2 \mu_0 \,\varepsilon(|\mathbf{E}|^2)\, E_y - i\omega\mu_0 J_y$$
+$$F_y = -\partial_x(\partial_x E_y - \partial_y E_x) - \omega^2 \mu_0 \ \varepsilon(|\mathbf{E}|^2)\  E_y - i\omega\mu_0 J_y$$
 
 All spatial derivatives are approximated with second-order central differences. The full state vector is $\mathbf{x} = (E_x^{\text{flat}}, E_y^{\text{flat}})^T \in \mathbb{C}^{2N_x N_y}$, and the residual is $\mathbf{F} = (F_x^{\text{flat}}, F_y^{\text{flat}})^T \in \mathbb{C}^{2N_x N_y}$.
 
@@ -216,9 +216,9 @@ At each frequency, the Newton iteration is initialized not from zero but from th
 
 At each Newton step, a **block-diagonal complex-shifted Laplacian preconditioner (CSLP)** is built. Each $2\times 2$ diagonal block couples $(E_x, E_y)$ at a single grid point through the cross-derivative term $\partial_x\partial_y$. At each grid point $i$, the block is:
 
-$$\mathbf{M}_i = \begin{pmatrix} \dfrac{2}{\Delta y^2} - \omega^2\mu_0\,\tilde{\varepsilon}_i & \dfrac{1}{4\Delta x \Delta y} \\[10pt] \dfrac{1}{4\Delta x \Delta y} & \dfrac{2}{\Delta x^2} - \omega^2\mu_0\,\tilde{\varepsilon}_i \end{pmatrix}$$
+$$\mathbf{M}_i = \begin{pmatrix} \dfrac{2}{\Delta y^2} - \omega^2\mu_0\\tilde{\varepsilon}_i & \dfrac{1}{4\Delta x \Delta y} \\\ \dfrac{1}{4\Delta x \Delta y} & \dfrac{2}{\Delta x^2} - \omega^2\mu_0\ \tilde{\varepsilon}_i \end{pmatrix}$$
 
-where the complex-shifted permittivity is $\tilde{\varepsilon}_i = \varepsilon(\mathbf{E}^k_i)\,(1 - 0.5i)$, evaluated at the current Newton iterate. This improves GMRES convergence near resonances where the unshifted operator is nearly singular, as it moves the spectrum away from the real axis.
+where the complex-shifted permittivity is $\tilde{\varepsilon}_i = \varepsilon(\mathbf{E}^k_i)\ (1 - 0.5i)$, evaluated at the current Newton iterate. This improves GMRES convergence near resonances where the unshifted operator is nearly singular, as it moves the spectrum away from the real axis.
 
 Each block is inverted analytically as $\mathbf{M}_i^{-1} = \frac{\text{adj}(\mathbf{M}_i)}{\text{det}(\mathbf{M}_i)}$. On the boundary conditions, this simply becomes the identity to enforce the PEC. The full preconditioner is $\mathbf{M} = \text{blkdiag}(\mathbf{M}_1^{-1}, \ldots, \mathbf{M}_N^{-1})$, applied as a right preconditioner so GMRES solves $\mathbf{J}\mathbf{M}^{-1}\mathbf{y} = -\mathbf{F}$.
 
