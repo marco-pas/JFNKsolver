@@ -364,41 +364,92 @@ def runSimulation(PRECISION,
         E_mag = jnp.sqrt(jnp.abs(Ex_c)**2 + jnp.abs(Ey_c)**2)
         response.append(float(jnp.max(E_mag)))
 
+        # if save_field_pic > 0 and (i + 1) % save_field_pic == 0:
+
+        #     fig_fields, axes = plt.subplots(1, 3, figsize=(16, 4.5))
+        #     ax_Ex, ax_Ey, ax_f = axes
+
+        #     # (J: {SIMULATION_J})
+
+        #     im_Ex = ax_Ex.imshow(np.abs(np.array(Ex_c)).T, origin='lower', cmap='plasma', extent=[0, Lx, 0, Ly])
+        #     # im_Ex = ax_Ex.imshow(np.abs(np.array(Ex_c)).T, origin='lower', cmap='plasma', extent=[0, Lx, 0, Ly], vmin=0.0, vmax=0.1)
+        #     im_Ex = ax_Ex.imshow(np.real(np.array(Ex_c)).T, origin='lower', cmap='plasma', extent=[0, Lx, 0, Ly])
+        #     # ax_Ex.set_xlabel('x')
+        #     # ax_Ex.set_ylabel('y')
+        #     ax_Ex.axis('off')
+        #     ax_Ex.set_title(rf'$E_x$ at $\omega={omega_val:.2f}$' + '\n' + 'BC: x=PEC y=PEC')
+        #     fig_fields.colorbar(im_Ex, ax=ax_Ex, fraction=0.046, pad=0.04)
+
+        #     im_Ey = ax_Ey.imshow(np.real(np.array(Ey_c)).T, origin='lower', cmap='viridis', extent=[0, Lx, 0, Ly])
+        #     # im_Ey = ax_Ey.imshow(np.abs(np.array(Ey_c)).T, origin='lower', cmap='viridis', extent=[0, Lx, 0, Ly])
+        #     # ax_Ey.set_xlabel('x')
+        #     # ax_Ey.set_ylabel('y')
+        #     ax_Ey.axis('off')
+        #     ax_Ey.set_title(rf'$E_y$ at $\omega={omega_val:.2f}$' + '\n' + 'BC: x=PEC y=PEC')
+        #     fig_fields.colorbar(im_Ey, ax=ax_Ey, fraction=0.046, pad=0.04)
+
+        #     im_f = ax_f.imshow(np.array(E_mag).T, origin='lower', cmap='magma', extent=[0, Lx, 0, Ly])
+        #     # ax_f.set_xlabel('x')
+        #     # ax_f.set_ylabel('y')
+        #     ax_f.axis('off')
+        #     ax_f.set_title(rf'$|\mathbf{{E}}|$ at $\omega={omega_val:.2f}$' + '\n' + 'BC: x=PEC y=PEC')
+        #     fig_fields.colorbar(im_f, ax=ax_f, fraction=0.046, pad=0.04)
+
+        #     plt.tight_layout()
+        #     pic_path = f"{prefix}_w{i+1}_fields.png"
+        #     fig_fields.savefig(pic_path, dpi=150, bbox_inches='tight')
+        #     plt.close(fig_fields)
+
+        # ------------- opt 2 ----------------
+
         if save_field_pic > 0 and (i + 1) % save_field_pic == 0:
-            fig_fields, axes = plt.subplots(1, 3, figsize=(16, 4.5))
-            ax_Ex, ax_Ey, ax_f = axes
+            # Create a 3x3 grid
+            fig, axes = plt.subplots(3, 3, figsize=(15, 10.5))
+            
+            # Pre-calculate components for cleaner code
+            Ex = np.array(Ex_c).T
+            Ey = np.array(Ey_c).T
+            
+            # Define the data groups for the rows
+            # Row 0: Real parts
+            # Row 1: Imaginary parts
+            # Row 2: Magnitudes (Abs)
+            data_matrix = [
+                [np.real(Ex), np.real(Ey), np.sqrt(np.real(Ex)**2 + np.real(Ey)**2)],
+                [np.imag(Ex), np.imag(Ey), np.sqrt(np.imag(Ex)**2 + np.imag(Ey)**2)],
+                [np.abs(Ex),  np.abs(Ey),  np.array(E_mag).T] # E_mag is likely sqrt(|Ex|^2 + |Ey|^2)
+            ]
+            
+            titles = [
+                [r'Re($E_x$)', r'Re($E_y$)', r'$\sqrt{Re(E_x)^2 + Re(E_y)^2}$'],
+                [r'Im($E_x$)', r'Im($E_y$)', r'$\sqrt{Im(E_x)^2 + Im(E_y)^2}$'],
+                [r'$|E_x|$',    r'$|E_y|$',    r'$|\mathbf{E}|$']
+            ]
+            
+            cmaps = ['plasma', 'viridis', 'magma'] # Using different cmaps per row for visual distinction
 
-            # (J: {SIMULATION_J})
+            for row in range(3):
+                for col in range(3):
+                    ax = axes[row, col]
+                    im = ax.imshow(data_matrix[row][col], origin='lower', 
+                                cmap=cmaps[row], extent=[0, Lx, 0, Ly])
+                    
+                    ax.axis('off')
+                    ax.set_title(titles[row][col])
+                    
+                    # Standardize colorbar sizing
+                    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
-            im_Ex = ax_Ex.imshow(np.abs(np.array(Ex_c)).T, origin='lower', cmap='plasma', extent=[0, Lx, 0, Ly])
-            im_Ex = ax_Ex.imshow(np.abs(np.array(Ex_c)).T, origin='lower', cmap='plasma', extent=[0, Lx, 0, Ly], vmin=0.0, vmax=0.1)
-            # ax_Ex.set_xlabel('x')
-            # ax_Ex.set_ylabel('y')
-            ax_Ex.axis('off')
-            ax_Ex.set_title(rf'$E_x$ at $\omega={omega_val:.2f}$' + '\n' + 'BC: x=PEC y=PEC')
-            fig_fields.colorbar(im_Ex, ax=ax_Ex, fraction=0.046, pad=0.04)
-
-            im_Ey = ax_Ey.imshow(np.abs(np.array(Ey_c)).T, origin='lower', cmap='viridis', extent=[0, Lx, 0, Ly])
-            # ax_Ey.set_xlabel('x')
-            # ax_Ey.set_ylabel('y')
-            ax_Ey.axis('off')
-            ax_Ey.set_title(rf'$E_y$ at $\omega={omega_val:.2f}$' + '\n' + 'BC: x=PEC y=PEC')
-            fig_fields.colorbar(im_Ey, ax=ax_Ey, fraction=0.046, pad=0.04)
-
-            im_f = ax_f.imshow(np.array(E_mag).T, origin='lower', cmap='magma', extent=[0, Lx, 0, Ly])
-            # ax_f.set_xlabel('x')
-            # ax_f.set_ylabel('y')
-            ax_f.axis('off')
-            ax_f.set_title(rf'$|\mathbf{{E}}|$ at $\omega={omega_val:.2f}$' + '\n' + 'BC: x=PEC y=PEC')
-            fig_fields.colorbar(im_f, ax=ax_f, fraction=0.046, pad=0.04)
-
+            plt.suptitle(r'$\mathbf{E}$-field distribution' + f' for $\omega={omega_val:.2f}$ (BC: x=PEC, y=PEC)', fontsize=16)
             plt.tight_layout()
-            pic_path = f"{prefix}_w{i+1}_fields.png"
-            fig_fields.savefig(pic_path, dpi=150, bbox_inches='tight')
-            plt.close(fig_fields)
+            
+            pic_path = f"{prefix}_w{i+1}_fields_9up.png"
+            plt.savefig(pic_path, dpi=150, bbox_inches='tight')
+            plt.close(fig)
 
             if verbose:
                 print(f"    Saved combined field images -> {pic_path}")
+
     t_wall_end = time.perf_counter()
 
     # ------- Summary Generation & Saving -------
@@ -502,29 +553,29 @@ def runSimulation(PRECISION,
 if __name__ == "__main__":
 
     # ---- Simulation Configuration ---- #
-    SIMULATION_J        = 'gaussian_center'      # source term: 'dipole' or 'gaussian_center'
+    SIMULATION_J        = 'dipole'      # source term: 'dipole' or 'gaussian_center'
     PRECISION           = 'float64'
 
     # ---- Physical Parameters ---- #
     mu0                 = 1.0
     eps0                = 1.0
     omega_start         = 4
-    omega_stop          = 20
-    omega_steps         = 17
+    omega_stop          = 30
+    omega_steps         = 27 # 17
     Nx, Ny              = 256, 256
 
     # ---- Maxwell Solver ---- #
-    useAD               = False
+    useAD               = True
     verbose             = False
     maxBackTrackingIter = 15
     
     # ---- Solver Tolerances ---- #  
     if PRECISION == 'float64':
         KrylovTol, KrylovIter = 1e-5, 100
-        NewtonTol, NewtonIter = 1e-5, 100
+        NewtonTol, NewtonIter = 1e-5, 120
     elif PRECISION == 'float32':
         KrylovTol, KrylovIter = 1e-2, 100
-        NewtonTol, NewtonIter = 1e-2, 100
+        NewtonTol, NewtonIter = 1e-2, 120
     else:
         raise ValueError('Choose different Precision')
     
