@@ -211,7 +211,7 @@ $$\omega_{mn} = \pi\sqrt{m^2 + n^2}, \qquad m, n \in \mathbb{Z}^+$$
 
 ### Born Approximation for Initial Guess
 
-At each frequency, the Newton iteration is initialized not from zero but from the solution of the **linearized** (Born) problem — i.e., the residual evaluated at $\mathbf{x} = 0$ (which makes $\varepsilon$ constant) is used as a linear system and solved with a single GMRES pass. This dramatically reduces the number of Newton iterations needed. This is because Newton solvers perform well when initialized close to the solution. In Burgers', the small time-stepping ensures we remain somewhat close to the previous solution, achieving convergence very quickly. In Maxwell, we solve the problem based on sources and boundary conditions, making convergence harder. Starting with a simple linearized problem, solved directly by GMRES, can improve convergence by providing an initial guess that is reasonably close to the solution.
+At each frequency, the Newton iteration is initialized from the solution of the **linearized** (Born) problem, i.e. the residual evaluated at $\mathbf{x} = 0$ (which makes $\varepsilon$ constant) is used as a linear system and solved with a single GMRES pass. This reduces the number of Newton iterations needed, since Newton solvers perform well when initialized close to the solution. In Burgers', the small time-stepping ensures we remain somewhat close to the previous solution, achieving convergence very quickly. In Maxwell, we solve the problem based on sources and boundary conditions, making convergence harder. Starting with a simple linearized problem, solved directly by GMRES, can improve convergence by providing an initial guess that is reasonably close to the solution.
 
 ### Preconditioner
 
