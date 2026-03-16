@@ -62,12 +62,13 @@ Otherwise $\alpha \leftarrow \alpha/2$, up to a maximum number of halvings. This
 
 For both PDE systems, two backends are provided for testing:
 
-| Backend | GMRES Solver | Jacobian-Vector Product | Data Transfers |
-|---------|-------------|------------------------|----------------|
-| **CPU** | SciPy `gmres` | `np.asarray(jax_result)` | JAX → NumPy |
-| **GPU** | CuPy `gmres` | DLPack zero-copy | JAX ↔ CuPy (no data copy) |
 
-The GPU version uses `jax.dlpack` and `cupy.from_dlpack` to pass tensors between JAX and CuPy without leaving device memory, keeping the entire Newton-Krylov loop on the GPU. This allows for some optimization to avoid memory bottlenecks and more fairly evaluate the performance of the two methods.
+| Backend | GMRES Solver | JVP Data Transfers |
+|---------|-------------|----------------|
+| **CPU** | SciPy `gmres` |  JAX → NumPy : `np.asarray(jax_result)` |
+| **GPU** | CuPy `gmres` | JAX ↔ CuPy : no data copy with `DLPack` zero-copy  |
+
+The GPU version uses `jax.dlpack` and `cupy.from_dlpack` to pass tensors between JAX and CuPy without leaving device memory, keeping the entire Newton-Krylov loop on the GPU. This allows for some optimization to avoid memory bottlenecks and more fairly evaluate the performance of the two methods. DLpack is an open standard for sharing tensors between different frameworks without copying the data, usually used in DeepLearning.
 
 ---
 
