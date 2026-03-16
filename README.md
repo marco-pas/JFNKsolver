@@ -54,7 +54,7 @@ After each GMRES solve, the step $\delta\mathbf{x}$ is accepted only if a suffic
 
 $$\|\mathbf{F}(\mathbf{x}^k + \alpha \  \delta\mathbf{x})\| < \|\mathbf{F}(\mathbf{x}^k)\|$$
 
-Otherwise $\alpha \leftarrow \alpha/2$, up to a maximum number of halvings. This stabilizes convergence for highly nonlinear problems (e.g., shock formation in Burgers', near-resonance behavior in Maxwell's). This helps significantly, as sometimes it is necessary to tweak the tolerance to make the problem converge — the Newton loop can occasionally get stuck, or the error can begin to diverge at some point within it.
+Otherwise $\alpha \leftarrow \alpha/2$, up to a maximum number of halvings. This stabilizes convergence for highly nonlinear problems (e.g., shock formation in Burgers', near-resonance behavior in Maxwell's). This helps significantly, as sometimes it is necessary to tweak the tolerance to make the problem converge — the Newton loop can occasionally get stuck, or the error can begin to diverge at some point within it if no backtracking is used.
 
 ---
 
