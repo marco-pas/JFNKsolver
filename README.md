@@ -272,10 +272,10 @@ where $G_i = \exp\!\left(-\frac{(x-x_0)^2 + (y-y_i)^2}{2\sigma^2}\right)$ with $
 
 ## Summary of Benchmark Cases
 
-| PDE | Case | Nonlinearity | 
+| PDE | Simulation Case | Origin of Nonlinearity | 
 |-----|------|-------------|
-| Burgers' | TGV | Advection | 
-| Burgers' | DSL | Advection + shear | 
-| Burgers' | 4VC | Advection + collision | 
-| Maxwell | Gaussian | Kerr permittivity | 
-| Maxwell | Dipole | Kerr permittivity | 
+| Burgers' | Taylor-Green Vortex (**TGV**) | Advection | 
+| Burgers' | Double Shear Layer (**DSL**) | Advection + shear | 
+| Burgers' | Four Vortex Collision (**4VC**)| Advection + collision | 
+| Maxwell | **Gaussian** Current Distribution| Kerr permittivity | 
+| Maxwell | **Dipole** Current Distribution | Kerr permittivity | 
