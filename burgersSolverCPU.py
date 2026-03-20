@@ -641,25 +641,25 @@ if __name__ == "__main__":
     
     # ---- Physical Parameters ---- #
     nu              = 0.05
-    steps           = 50
+    steps           = 10
     Nx, Ny          = 256, 256
     Courant         = 0.7
 
     # ---- Burgers Solver ---- #
-    useAD               = False                  # True -> AD Jacobian, False -> FD Jacobian
+    useAD               = True                  # True -> AD Jacobian, False -> FD Jacobian
     verbose             = False
     maxBackTrackingIter = 15                
     
     # ---- Solver Tolerances ---- #  
     if PRECISION == 'float32':
-        KrylovTol       = 1e-3
+        KrylovTol       = 1.2e-7 # 1e-3 
         KrylovIter      = int(1e2)
-        NewtonNonlinTol = 1e-3
+        NewtonNonlinTol = 1.2e-7 # 1e-3
         NewtonIter      = int(15)
     elif PRECISION == 'float64':  
-        KrylovTol       = 1e-6
+        KrylovTol       = 2.2e-16
         KrylovIter      = int(1e2)
-        NewtonNonlinTol = 1e-6
+        NewtonNonlinTol = 2.2e-16
         NewtonIter      = int(15)
     else:
         raise ValueError('Choose different Precision')

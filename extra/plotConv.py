@@ -29,7 +29,7 @@ def mean_contraction(res):
     ratios = res[1:] / res[:-1]
     return float(np.exp(np.mean(np.log(ratios))))
 
-fig, ax = plt.subplots(figsize=(8, 5))
+fig, ax = plt.subplots(figsize=(8, 4))
 
 for label, d in parsed.items():
     rel = d["res"] / d["res"][0]

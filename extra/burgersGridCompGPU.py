@@ -1,5 +1,3 @@
-import glob
-import io
 import os
 import time
 
@@ -8,8 +6,6 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from functools import partial as ft_partial
-from numpy.linalg import norm
-from PIL import Image
 
 import cupy as cp
 import cupyx.scipy.sparse.linalg as cupy_spla
@@ -40,19 +36,6 @@ def configure_precision(precision: str):
         return jnp.float32
     else:
         raise ValueError(f"Unknown precision '{precision}'. Use 'float32' or 'float64'.")
-
-# -------- increment GIF path --------
-def next_gif_path(base: str = 'burgers_evolution') -> str:
-    existing = glob.glob(f'{base}_???.gif')
-    used = set()
-    for f in existing:
-        stem = f[len(base) + 1:-4]
-        if stem.isdigit():
-            used.add(int(stem))
-    for n in range(1, 1000):
-        if n not in used:
-            return f'{base}_{n:03d}.gif'
-    raise RuntimeError("All GIF slots _001–_999 are taken. Clean up old files.")
 
 #  ---------- ICs / BCs  --------
 def get_initial_conditions(X, Y, dtype, sim_type):
@@ -166,7 +149,7 @@ def flattenJnp(vel_vec, Nx, Ny):
 def kinetic_energy(u, v, dx, dy):
     return 0.5 * float(jnp.sum(u**2 + v**2)) * dx * dy
 
-def plot_energy(energy_history, dt_history, gif_path):
+def plot_energy(energy_history, dt_history, figFolder):
     times = [0.0]
     for dt in dt_history:
         times.append(times[-1] + dt)
@@ -179,8 +162,8 @@ def plot_energy(energy_history, dt_history, gif_path):
     ax.grid(True, which='both', linestyle='--', alpha=0.5)
     plt.tight_layout()
 
-    energy_path = gif_path.replace('.gif', '_energy.png')
-    fig.savefig(energy_path, dpi=120, bbox_inches='tight')
+    energy_path = os.path.join(figFolder, 'burgers_energy.pdf')
+    fig.savefig(energy_path, format='pdf', dpi=120, bbox_inches='tight')
     plt.close(fig)
     print(f"Energy plot saved -> {energy_path}")
 
@@ -195,8 +178,6 @@ def JacobianActionFD(u, v, F_u, F_v, Nx, Ny, perturb, dt, nu, dx, dy, bc_x=DIRIC
 
     state_norm = jnp.linalg.norm(jnp.concatenate([u.ravel(), v.ravel()]))
     
-    # FIX: Remove perturb_norm. GMRES internal vectors are normalized to ~1.0 anyway.
-    # This keeps eps constant relative to the input vector, ensuring strict JAX linearity.
     eps = b * jnp.maximum(1.0, state_norm) 
     
     eps_max = jnp.sqrt(b)
@@ -248,7 +229,7 @@ def vel_magnitude(u, v):
 
 def init_plot(u0, v0, xi, xf, yi, yf, bc_x, bc_y):
     plt.ion()
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
+    fig, axes = plt.subplots(1, 3, figsize=(16.5, 4.5))
     ax_u, ax_v, ax_mag = axes
     extent = [xi, xf, yi, yf]
     mag0   = vel_magnitude(u0, v0)
@@ -261,19 +242,19 @@ def init_plot(u0, v0, xi, xf, yi, yf, bc_x, bc_y):
 
     img_u = ax_u.imshow(np.array(u0),    cmap='magma',   extent=extent,
                         origin='lower', vmin=u_vmin,   vmax=u_vmax)
-    ax_u.set_title(f'u(x,y) | Step 0\n{bc_label}')
+    ax_u.set_title(f' ')
     ax_u.axis('off')
     fig.colorbar(img_u,   ax=ax_u,   fraction=0.046, pad=0.04)
 
     img_v = ax_v.imshow(np.array(v0),    cmap='plasma',  extent=extent,
                         origin='lower', vmin=v_vmin,   vmax=v_vmax)
-    ax_v.set_title(f'v(x,y) | Step 0\n{bc_label}')
+    ax_v.set_title(f' ')
     ax_v.axis('off')
     fig.colorbar(img_v,   ax=ax_v,   fraction=0.046, pad=0.04)
 
     img_mag = ax_mag.imshow(np.array(mag0), cmap='viridis', extent=extent,
                             origin='lower', vmin=mag_vmin, vmax=mag_vmax)
-    ax_mag.set_title(f'||vel|| | Step 0\n{bc_label}')
+    ax_mag.set_title(f' ')
     ax_mag.axis('off')
     fig.colorbar(img_mag, ax=ax_mag, fraction=0.046, pad=0.04)
 
@@ -289,40 +270,18 @@ def init_plot(u0, v0, xi, xf, yi, yf, bc_x, bc_y):
 def update_plot(img_u, img_v, img_mag, ax_u, ax_v, ax_mag, u, v, step, clims, bc_label, displayPlot=True):
     mag = vel_magnitude(u, v)
     img_u.set_data(np.array(u))
-    ax_u.set_title(f'u(x,y) | Step {step}\n{bc_label}')
+    ax_u.set_title(f' ----- ')
     img_v.set_data(np.array(v))
-    ax_v.set_title(f'v(x,y) | Step {step}\n{bc_label}')
+    ax_v.set_title(f' ----- ')
     img_mag.set_data(np.array(mag))
-    ax_mag.set_title(f'||vel|| | Step {step}\n{bc_label}')
-    # plt.tight_layout()
+    ax_mag.set_title(f' ----- ')
     if displayPlot:
         plt.pause(0.01)
-
-def capture_frame(fig):
-    buf = io.BytesIO()
-    # fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
-    fig.savefig(buf, format='png', dpi=90)
-    buf.seek(0)
-    return Image.open(buf).copy()
-
-def save_gif(frames, path='burgers_evolution_001.gif', fps=6):
-    if not frames:
-        print("No frames captured — nothing to save.")
-        return
-    frames[0].save(
-        path,
-        save_all=True,
-        append_images=frames[1:],
-        optimize=False,
-        duration=int(1000 / fps),
-        loop=0
-    )
-    print(f"GIF saved -> {path}  ({len(frames)} frames @ {fps} fps)")
 
 # Function to run all the simulation
 def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackTrackingIter,
                   nu, steps, Nx, Ny, Courant, KrylovTol, KrylovIter, NewtonNonlinTol, NewtonIter,
-                  plot_steps, gif_fps, displayPlot, figFolder, save_steps, dataFolder):
+                  plot_steps, displayPlot, figFolder, save_steps, dataFolder):
     
     t_wall_start = time.perf_counter()
 
@@ -330,8 +289,6 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
     print(f"Precision: {PRECISION}  (dtype={dtype})")
 
     os.makedirs(figFolder, exist_ok=True)
-    gif_path = next_gif_path(f'{figFolder}/burgers_evolution')
-    print(f"Output GIF: {gif_path}")
 
     # ---- grids ----
     xi, xf = 0.0, 2*np.pi
@@ -360,7 +317,11 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
     fig, img_u, img_v, img_mag, ax_u, ax_v, ax_mag, clims, bc_label = init_plot(
         u0, v0, xi, xf, yi, yf, BC_X, BC_Y
     )
-    gif_frames = [capture_frame(fig)]
+    
+    # Save the initial condition (Step 0) as the first PDF
+    pdf_path_0 = os.path.join(figFolder, f"burgers_frame_0000.pdf")
+    fig.savefig(pdf_path_0, format='pdf', bbox_inches='tight')
+    print(f"Saved -> {pdf_path_0}")
 
     energy_history = [kinetic_energy(u, v, dx, dy)]
     dt_history     = []
@@ -407,8 +368,6 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
                 newton_iters_per_step.append(k + 1)
                 break
 
-            # --- JAX Native GMRES ---
-            # Matvec closures capture the current nonlinear state locally
             if useAD:
                 def A_matvec_jax(vec):
                     return JacobianActionAD_jit(u_k, v_k, u_old, v_old, vec, dt, nu, dx, dy, BC_X, BC_Y, Nx, Ny)
@@ -416,40 +375,28 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
                 def A_matvec_jax(vec):
                     return JacobianActionFD_jit(u_k, v_k, F_u_k, F_v_k, Nx, Ny, vec, dt, nu, dx, dy, BC_X, BC_Y)
 
-            # Wrapper to bridge CuPy and JAX
             def A_matvec_cp(vec_cp):
-                # 1. CuPy -> JAX (Zero-copy)
                 vec_jax = jax_dlpack.from_dlpack(vec_cp)
-                
-                # 2. Run the chosen JIT-compiled operator
                 res_jax = A_matvec_jax(vec_jax)
-                
-                # 3. JAX -> CuPy (Zero-copy)
                 return cp.from_dlpack(res_jax)
 
-            # Define the Linear Operator for CuPy
             JLinearOp = cupy_spla.LinearOperator(
                 (2*Nx*Ny, 2*Nx*Ny),
                 matvec=A_matvec_cp,
                 dtype=np.float32 if PRECISION == 'float32' else np.float64
             )
 
-            # Convert the RHS base residual (-F_k) to CuPy directly
             F_vec_cp = cp.from_dlpack(-F_vec)
             
-            # Execute GMRES natively on the GPU via CuPy
             delta_vel_cp, info = cupy_spla.gmres(
                 JLinearOp, F_vec_cp, rtol=KrylovTol, maxiter=KrylovIter
             )
             
-            # Convert the resulting perturbation vector back to JAX directly
             delta_vel = jax_dlpack.from_dlpack(delta_vel_cp)
 
             if verbose and info > 0:
                 print(f"  CuPy GMRES failed to converge: info={info}")
 
-            # ---- start the Backtracking -----
-            # Flatten natively on the GPU array (no np.array conversions!)
             delta_u, delta_v = flattenJnp(delta_vel, Nx, Ny)
             alpha = 1.0
             
@@ -494,19 +441,20 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
         step_end_time = time.perf_counter()
         time_per_time_step.append(step_end_time - step_start_time)
 
+        # Directly save individual PDFs to your folder instead of storing frames
         if (step + 1) % plot_steps == 0:
             update_plot(img_u, img_v, img_mag, ax_u, ax_v, ax_mag, u, v, step + 1, clims, bc_label, displayPlot)
-            gif_frames.append(capture_frame(fig))
+            
+            pdf_path = os.path.join(figFolder, f"burgers_frame_{step + 1:04d}.pdf")
+            fig.savefig(pdf_path, format='pdf', bbox_inches='tight')
+            print(f"Saved -> {pdf_path}")
 
-        # @@ save for comparison
         if save_steps > 0 and (step + 1) % save_steps == 0:
             os.makedirs(dataFolder, exist_ok=True)
             
-            # Convert to standard CPU NumPy arrays for portable saving
             u_np = np.array(u)
             v_np = np.array(v)
             
-            # Save files (e.g., time_shots/u_1024_1024_step0100.npy)
             u_path = f"{dataFolder}/u_step{step + 1:04d}_t{timeRec:04f}.npy"
             v_path = f"{dataFolder}/v_step{step + 1:04d}_t{timeRec:04f}.npy"
             
@@ -515,7 +463,6 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
             
             if verbose:
                 print(f"  Saved fields to {u_path} and {v_path}")
-        # @@ here
 
     print("\nDone!")
     t_wall_end = time.perf_counter()
@@ -570,15 +517,12 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
 """
     print(summary_text)
 
-    txt_path = gif_path.replace('.gif', '_summary.txt')
+    txt_path = os.path.join(figFolder, 'burgers_summary.txt')
     with open(txt_path, "w") as f:
         f.write(summary_text)
 
     print("Saving energy plot")
-    plot_energy(energy_history, dt_history, gif_path)
-
-    print("Saving the GIF")
-    save_gif(gif_frames, path=gif_path, fps=gif_fps)
+    plot_energy(energy_history, dt_history, figFolder)
 
     plt.ioff()
     if displayPlot:
@@ -588,15 +532,15 @@ def runSimulation(PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, maxBackT
 if __name__ == "__main__":
     
     # ---- Simulation Configuration ---- #
-    SIMULATION_IC   = 'DSL'           # 'TGV' (Taylor-Green Vortex), 'DSL' (Double Shear Layer), or '4VC' (4-Vortex Collision)      
+    SIMULATION_IC   = 'TGV'           # 'TGV' (Taylor-Green Vortex), 'DSL' (Double Shear Layer), or '4VC' (4-Vortex Collision)      
     PRECISION       = 'float64'
     BC_X            = PERIODIC
     BC_Y            = PERIODIC
     
     # ---- Physical Parameters ---- #
-    nu              = 0.5 # 0.05 
-    steps           = 15000
-    Nx, Ny          = 256, 256
+    nu              = 0.05
+    steps           = 3000
+    Nx, Ny          = 512, 512
     Courant         = 0.7
 
     # ---- Burgers Solver ---- #
@@ -621,11 +565,9 @@ if __name__ == "__main__":
     # ---- Plotting + I/O ---- #
     plot_steps      = 500
     save_steps      = 1e7
-    gif_fps         = 20
     displayPlot     = True
     figFolder       = "output/burgers"
     dataFolder      = f"data/{SIMULATION_IC}_{Nx}_{Ny}_{'AD' if useAD else 'FD'}_{PRECISION}"
-
 
     runSimulation(PRECISION, 
                   BC_X, 
@@ -644,7 +586,6 @@ if __name__ == "__main__":
                   NewtonNonlinTol, 
                   NewtonIter,
                   plot_steps, 
-                  gif_fps, 
                   displayPlot, 
                   figFolder,
                   save_steps,

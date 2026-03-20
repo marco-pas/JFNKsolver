@@ -328,6 +328,7 @@ def runSimulation(PRECISION,
             M_LinearOp = cupy_spla.LinearOperator((2*N_pts, 2*N_pts), matvec=M_matvec_cp, dtype=cupy_dtype)
 
             krylov_tol = max(0.1 * rel_res, KrylovTol)
+
             F_rhs_cp = cp.from_dlpack(-F)
             delta_cp, info = cupy_spla.gmres(JLinearOp, F_rhs_cp, M=M_LinearOp, rtol=krylov_tol, restart=200, maxiter=30)
 
@@ -339,7 +340,7 @@ def runSimulation(PRECISION,
 
             # Line search
             alpha = 1.0
-            for _ in range(maxBackTrackingIter):
+            for ls_iter in range(maxBackTrackingIter):
                 state_try  = state + alpha * delta
                 F_try      = residual_TE(state_try, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
                 F_try_norm = float(jnp.linalg.norm(F_try))
@@ -349,6 +350,8 @@ def runSimulation(PRECISION,
                 alpha *= 0.5
             else:
                 state = state_try
+
+            # print(f"    alpha = {alpha:.4f}  (ls_iters used = {ls_iter})")
                 
             time_per_newton_iter.append(time.perf_counter() - t0_iter)
 
@@ -559,20 +562,20 @@ if __name__ == "__main__":
     # ---- Physical Parameters ---- #
     mu0                 = 1.0
     eps0                = 1.0
-    omega_start         = 4
-    omega_stop          = 30
-    omega_steps         = 27 # 17
+    omega_start         = 200
+    omega_stop          = 380
+    omega_steps         = 4
     Nx, Ny              = 256, 256
 
     # ---- Maxwell Solver ---- #
     useAD               = True
-    verbose             = False
+    verbose             = True
     maxBackTrackingIter = 15
     
     # ---- Solver Tolerances ---- #  
     if PRECISION == 'float64':
-        KrylovTol, KrylovIter = 1e-5, 100
-        NewtonTol, NewtonIter = 1e-5, 120
+        KrylovTol, KrylovIter = 1e-12, 100
+        NewtonTol, NewtonIter = 1e-8, 400
     elif PRECISION == 'float32':
         KrylovTol, KrylovIter = 1e-2, 100
         NewtonTol, NewtonIter = 1e-2, 120
