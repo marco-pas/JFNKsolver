@@ -136,7 +136,7 @@ The TGV is a classical benchmark for viscous flow solvers.
 
 **Initial Conditions:** Given steepness parameter $\rho = 30$ and perturbation amplitude $\delta = 0.05$:
 
-$$u(x, y) = \begin{cases} \tanh\!\left(\rho \left(y - \dfrac{\pi}{2}\right)\right) & y \leq \pi \\\ \tanh\!\left(\rho \left(\dfrac{3\pi}{2} - y\right)\right) & y > \pi \end{cases}, \qquad v(x, y) = \delta \sin(x)$$
+$$u(x, y) = \begin{cases} \tanh\left(\rho \left(y - \dfrac{\pi}{2}\right)\right) & y \leq \pi \\\ \tanh\left(\rho \left(\dfrac{3\pi}{2} - y\right)\right) & y > \pi \end{cases}, \qquad v(x, y) = \delta \sin(x)$$
 
 The DSL features two thin shear interfaces that are Kelvin-Helmholtz unstable, making it the most numerically challenging case for the nonlinear solver. The sinusoidal perturbation on $v$ triggers the instability, leading to vortical structures. This is a stress test for the nonlinear solver, as near-singular gradient regions form rapidly.
 
@@ -234,7 +234,7 @@ Each block is inverted analytically as $\mathbf{M}_i^{-1} = \frac{\text{adj}(\ma
 
 **Source Definition:**
 
-$$J_x(x,y) = \exp\!\left(-\frac{(x-x_0)^2 + (y-y_0)^2}{2\sigma^2}\right), \qquad J_y = 0$$
+$$J_x(x,y) = \exp\left(-\frac{(x-x_0)^2 + (y-y_0)^2}{2\sigma^2}\right), \qquad J_y = 0$$
 
 with $x_0 = y_0 = L/2$ (domain center) and $\sigma = 0.05 \cdot L$. A tightly focused Gaussian current source placed at the center of the domain. It excites all cavity modes symmetrically, making it well-suited for revealing the full resonance spectrum.
 
@@ -256,7 +256,7 @@ with $x_0 = y_0 = L/2$ (domain center) and $\sigma = 0.05 \cdot L$. A tightly fo
 
 $$J_x(x,y) = G_1(x,y) - G_2(x,y), \qquad J_y = 0$$
 
-where $G_i = \exp\!\left(-\frac{(x-x_0)^2 + (y-y_i)^2}{2\sigma^2}\right)$ with $y_1 = L/3$, $y_2 = 2L/3$, and $\sigma = 2\Delta x$. Two Gaussian lobes of opposite sign, separated along $y$, mimicking a classical dipole antenna. The antisymmetric source selectively excites modes with odd symmetry in the $y$-direction and suppresses even ones, making the resonance spectrum sparser and the near-field structure richer.
+where $G_i = \exp\left(-\frac{(x-x_0)^2 + (y-y_i)^2}{2\sigma^2}\right)$ with $y_1 = L/3$, $y_2 = 2L/3$, and $\sigma = 2\Delta x$. Two Gaussian lobes of opposite sign, separated along $y$, mimicking a classical dipole antenna. The antisymmetric source selectively excites modes with odd symmetry in the $y$-direction and suppresses even ones, making the resonance spectrum sparser and the near-field structure richer.
 
 <p align="center">
 <img src="./output/maxw/examplesMaxw/dipole/maxwell_001_w2_fields_9up.png" alt="Dipole fields w2" width="100%">
