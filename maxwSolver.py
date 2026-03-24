@@ -210,7 +210,7 @@ def runSimulation(device,
         numpy_dtype   = np.complex64
         cupy_dtype    = cp.complex64 if HAS_GPU_LIBS else None
 
-    prefix = get_next_prefix(figFolder, f"maxwell_{device}")
+    prefix = get_next_prefix(figFolder, f"maxwell")
     print(f"Hardware Target: {device.upper()}")
     print(f"Precision: {PRECISION} | Linearization: {'AD' if useAD else 'FD'}")
     print(f"Output files will be saved with prefix: {prefix}")
@@ -569,44 +569,39 @@ def runSimulation(device,
 --- Simulation Options 
   Hardware      : {device.upper()}
   Linearization : {lin_type}
-  Krylov solver : {KrylovSolver.upper()}
   Precision     : {PRECISION}
+  Outer loop    : omega
+  Outer steps   : {omega_steps}
   BC on x       : PEC
   BC on y       : PEC
-  Source Type   : {SIMULATION_J}
+  Simulation    : {SIMULATION_J}
   Grid          : ({Nx}, {Ny})
-  mu0           : {mu0}
-  eps0          : {eps0}
-  Omega steps   : {omega_steps}
+  Krylov solver : {KrylovSolver.upper()}
   Newton tol    : {NewtonTol}
   Krylov tol    : {KrylovTol}
+  Newton MaxIt  : {NewtonIter}
+  Krylov MaxIt  : {KrylovIter}
   Max BT iters  : {maxBackTrackingIter}
 
---- Newton Iterations per Omega Step
+--- Newton Iters per Outer Step
   Average : {np.mean(arr_newton_iters):.2f}
   Std Dev : {np.std(arr_newton_iters):.2f} ({safe_pct(np.std(arr_newton_iters), np.mean(arr_newton_iters)):.4f}%)
   Max     : {np.max(arr_newton_iters)}
   Min     : {np.min(arr_newton_iters)}
 
---- Krylov Iterations per Newton Step
+--- Krylov Iters per Newton Step
   Average : {np.mean(arr_krylov_iters):.2f}
   Std Dev : {np.std(arr_krylov_iters):.2f} ({safe_pct(np.std(arr_krylov_iters), np.mean(arr_krylov_iters)):.4f}%)
   Max     : {np.max(arr_krylov_iters)}
   Min     : {np.min(arr_krylov_iters)}
 
---- Final Residual Norms (||F||)
-  Average : {np.mean(arr_res_norms):.4e}
-  Std Dev : {np.std(arr_res_norms):.4e} ({safe_pct(np.std(arr_res_norms), np.mean(arr_res_norms)):.4f}%)
-  Max     : {np.max(arr_res_norms):.4e}
-  Min     : {np.min(arr_res_norms):.4e}
-
---- Time per Newton Iteration, s
+--- Time per Newton Iter, s
   Average : {np.mean(arr_time_newton):.4f}
   Std Dev : {np.std(arr_time_newton):.4f} ({safe_pct(np.std(arr_time_newton), np.mean(arr_time_newton)):.4f}%)
   Max     : {np.max(arr_time_newton):.4f}
   Min     : {np.min(arr_time_newton):.4f}
 
---- Time per Outer Omega Step, s
+--- Time per Outer Step, s
   Average : {np.mean(arr_time_omega):.4f}
   Std Dev : {np.std(arr_time_omega):.4f} ({safe_pct(np.std(arr_time_omega), np.mean(arr_time_omega)):.4f}%)
   Max     : {np.max(arr_time_omega):.4f}
@@ -615,7 +610,6 @@ def runSimulation(device,
 --- Overall Time, s
   Total Solver Time       : {np.sum(arr_time_omega):.4f}
   Total Wall Time         : {(t_wall_end - t_wall_start):.4f}
-  Frequency Sweep Range   : {omega_start} to {omega_stop}
 {"="*50}
 """
     print(summary_text)

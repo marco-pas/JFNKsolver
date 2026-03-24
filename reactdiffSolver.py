@@ -78,7 +78,7 @@ def configure_precision(precision: str):
 
 
 # -------- increment GIF path --------
-def next_gif_path(base: str = 'rcd_evolution') -> str:
+def next_gif_path(base: str = 'reactdiff') -> str:
     existing = glob.glob(f'{base}_???.gif')
     used = set()
     for f in existing:
@@ -286,7 +286,7 @@ def capture_frame(fig):
     buf.seek(0)
     return Image.open(buf).copy()
 
-def save_gif(frames, path='rcd_evolution_001.gif', fps=6):
+def save_gif(frames, path='reactdiff_001.gif', fps=6):
     if not frames:
         print("No frames captured — nothing to save.")
         return
@@ -314,7 +314,7 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
     print(f"Precision: {PRECISION}  (dtype={dtype})")
 
     os.makedirs(figFolder, exist_ok=True)
-    gif_path = next_gif_path(f'{figFolder}/rcd_evolution')
+    gif_path = next_gif_path(f'{figFolder}/reactdiff')
     print(f"Output GIF: {gif_path}")
 
     # ---- grids ----
@@ -553,38 +553,39 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
 --- Simulation Options
   Hardware      : {device.upper()}
   Linearization : {lin_type}
-  Krylov solver : {KrylovSolver.upper()}
   Precision     : {PRECISION}
+  Outer loop    : time
+  Outer steps   : {steps}
   BC on x       : {BC_X}
   BC on y       : {BC_Y}
-  Simulation IC : {SIMULATION_IC}
+  Simulation    : {SIMULATION_IC}
   Grid          : ({Nx}, {Ny})
-  Diffusion D   : {D}
-  Courant       : {Courant}
-  Time steps    : {steps}
+  Krylov solver : {KrylovSolver.upper()}
   Newton tol    : {NewtonNonlinTol}
   Krylov tol    : {KrylovTol}
+  Newton MaxIt  : {NewtonIter}
+  Krylov MaxIt  : {KrylovIter}
   Max BT iters  : {maxBackTrackingIter}
 
---- Newton Iterations per Time Step
+--- Newton Iters per Outer Step
   Average : {np.mean(arr_newton_iters):.2f}
   Std Dev : {np.std(arr_newton_iters):.2f} ({np.std(arr_newton_iters) / np.mean(arr_newton_iters):.4f}%)
   Max     : {np.max(arr_newton_iters)}
   Min     : {np.min(arr_newton_iters)}
 
---- Krylov Iterations per Newton Step
+--- Krylov Iters per Newton Step
   Average : {np.mean(arr_krylov_iters):.2f}
   Std Dev : {np.std(arr_krylov_iters):.2f} ({np.std(arr_krylov_iters) / np.mean(arr_krylov_iters):.4f}%)
   Max     : {np.max(arr_krylov_iters)}
   Min     : {np.min(arr_krylov_iters)}
 
---- Time per Newton Iteration, s
+--- Time per Newton Iter, s
   Average : {np.mean(arr_time_newton):.4f}
   Std Dev : {np.std(arr_time_newton):.4f} ({np.std(arr_time_newton) / np.mean(arr_time_newton):.4f}%)
   Max     : {np.max(arr_time_newton):.4f}
   Min     : {np.min(arr_time_newton):.4f}
 
---- Time per Outer Time Step, s
+--- Time per Outer Step, s
   Average : {np.mean(arr_time_step):.4f}
   Std Dev : {np.std(arr_time_step):.4f} ({np.std(arr_time_step) / np.mean(arr_time_step):.4f}%)
   Max     : {np.max(arr_time_step):.4f}
@@ -593,7 +594,6 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
 --- Overall Time, s
   Total Solver Time       : {np.sum(arr_time_step):.4f}
   Total Wall Time         : {(t_wall_end - t_wall_start):.4f}
-  Physical Time Simulated : {np.sum(np.array(dt_history)):.4f}
 {"="*50}
 """
     print(summary_text)
