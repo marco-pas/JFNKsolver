@@ -82,6 +82,10 @@ def compile_summaries_to_csv(output_csv="benchmark_results.csv"):
                     parts = line.split(":", 1)
                     key = parts[0].strip()
                     val = parts[1].strip()
+
+                    # ignore full data arrays
+                    if key.startswith("ARRAY_") or key.startswith("DATA ARRAYS"):
+                        continue
                     
                     # Remove percentage brackets from standard dev strings if they exist
                     if "(" in val and "%)" in val:
@@ -172,7 +176,6 @@ if __name__ == "__main__":
     KRYLOV_ITER = 100
     NEWTON_ITER = 15
     MAX_BT_ITER = 15
-    PHYS_PARAM  = 1234.0   # Placeholder physics parameter requested
 
     # Physical Params
     NU      = 0.05      # Burgers' eq viscosity
@@ -180,16 +183,16 @@ if __name__ == "__main__":
     DIFF    = 0.01      # Diff coeff react diff
     MU0     = 1.0       # Maxw
     EPS0    = 1.0       # Maxw
-    COURANT = 1         # solver is implcit
-    OMEGA_STEPS = 3     # Maxwell steps
+    COURANT = 1.5         # solver is implcit
+    OMEGA_STEPS = 10     # Maxwell steps
 
     # ---- Hardware Specific Overrides ----
     if args.device == 'cpu':
-        TM_STEPS = 3
+        TM_STEPS = 10
         TM_N     = 256
         MAXW_N   = 128
     else:
-        TM_STEPS = 12
+        TM_STEPS = 40
         TM_N     = 512
         MAXW_N   = 256
 
@@ -210,7 +213,7 @@ if __name__ == "__main__":
         try:
             burgersSolver.runSimulation(
                 device=args.device, PRECISION=prec, BC_X='periodic', BC_Y='periodic', SIMULATION_IC=ic,
-                verbose=False, useAD=ad, maxBackTrackingIter=MAX_BT_ITER, nu=PHYS_PARAM,
+                verbose=False, useAD=ad, maxBackTrackingIter=MAX_BT_ITER, nu=NU,
                 steps=TM_STEPS, Nx=TM_N, Ny=TM_N, Courant=COURANT, KrylovSolver=solver,
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER, 
                 NewtonNonlinTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER,
@@ -225,17 +228,18 @@ if __name__ == "__main__":
     
     print("\n--- Queuing Radiative Diffusion ---")
     rd_precisions = ['float32', 'float64']
+    rd_ics        = ['CLASSIC_SU_OLSON', 'DYNAMIC']
     rd_ads        = [True, False]
     rd_solvers    = ['gmres', 'bicgstab']
     
-    rd_combos = list(itertools.product(rd_precisions, rd_ads, rd_solvers))
+    rd_combos = list(itertools.product(rd_precisions, rd_ics, rd_ads, rd_solvers))
     
-    for i, (prec, ad, solver) in enumerate(rd_combos):
-        print(f"  [RadDiff {i+1}/{len(rd_combos)}] {prec} | CLASSIC_SU_OLSON | AD:{ad} | {solver.upper()}")
+    for i, (prec, ic, ad, solver) in enumerate(rd_combos):
+        print(f"  [RadDiff {i+1}/{len(rd_combos)}] {prec} | {ic} | AD:{ad} | {solver.upper()}")
         try:
             raddiffSolver.runSimulation(
                 device=args.device, PRECISION=prec, BC_X='dirichlet', BC_Y='periodic', 
-                SIMULATION_IC='SO', SOURCE_TYPE='central', verbose=False, useAD=ad, 
+                SIMULATION_IC=ic, SOURCE_TYPE='central', verbose=False, useAD=ad, 
                 maxBackTrackingIter=MAX_BT_ITER, epsilon=EPSILON, Q0=1.0, x_src=0.5, tau_src=float('inf'), 
                 Courant=COURANT, steps=TM_STEPS, Nx=TM_N, Ny=TM_N, KrylovSolver=solver,
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER, 
@@ -251,17 +255,18 @@ if __name__ == "__main__":
     
     print("\n--- Queuing Reaction Diffusion ---")
     rcd_precisions = ['float32', 'float64']
+    rcd_ics        = ['gaussian', 'sinusoidal']
     rcd_ads        = [True, False]
     rcd_solvers    = ['gmres', 'bicgstab', 'cg'] # <--- includes CG!
     
-    rcd_combos = list(itertools.product(rcd_precisions, rcd_ads, rcd_solvers))
+    rcd_combos = list(itertools.product(rcd_precisions, rcd_ics, rcd_ads, rcd_solvers))
     
-    for i, (prec, ad, solver) in enumerate(rcd_combos):
-        print(f"  [ReactDiff {i+1}/{len(rcd_combos)}] {prec} | gaussian | AD:{ad} | {solver.upper()}")
+    for i, (prec, ic, ad, solver) in enumerate(rcd_combos):
+        print(f"  [ReactDiff {i+1}/{len(rcd_combos)}] {prec} | {ic} | AD:{ad} | {solver.upper()}")
         try:
             reactdiffSolver.runSimulation(
                 device=args.device, PRECISION=prec, BC_X='dirichlet', BC_Y='dirichlet', 
-                SIMULATION_IC='gaussian', verbose=False, useAD=ad, maxBackTrackingIter=MAX_BT_ITER,
+                SIMULATION_IC=ic, verbose=False, useAD=ad, maxBackTrackingIter=MAX_BT_ITER,
                 D=DIFF, steps=TM_STEPS, Nx=TM_N, Ny=TM_N, Courant=COURANT, KrylovSolver=solver,
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER, 
                 NewtonNonlinTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER,
@@ -292,7 +297,7 @@ if __name__ == "__main__":
                 SIMULATION_J=source,     # <--- Dynamically sets 'dipole' or 'gaussian_center'
                 useAD=ad, 
                 verbose=False,
-                mu0=PHYS_PARAM, eps0=PHYS_PARAM, omega_start=5.0, omega_stop=200.0, omega_steps=OMEGA_STEPS,
+                mu0=MU0, eps0=EPS0, omega_start=5.0, omega_stop=200.0, omega_steps=OMEGA_STEPS,
                 Nx=MAXW_N, Ny=MAXW_N, KrylovSolver=solver, 
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER,
                 NewtonTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER, maxBackTrackingIter=MAX_BT_ITER,

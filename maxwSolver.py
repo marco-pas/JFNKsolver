@@ -243,6 +243,8 @@ def runSimulation(device,
     time_per_newton_iter    = []
     time_per_omega_step     = []
     final_res_norms         = []
+    step_success_history = []
+    final_residual_history = []
 
     # ----------- FREQUENCY LOOP -----------
     print("\nStarting Frequency Sweep")
@@ -350,6 +352,10 @@ def runSimulation(device,
         initial_res_norm = None
         c1 = 1e-4  
 
+        # --- track convergence for Perf Analysis ---
+        step_converged = False
+        final_res = 0.0
+
         # -------------- Newton loop -------------
         for k in range(NewtonIter):
             t0_iter = time.perf_counter()
@@ -361,9 +367,11 @@ def runSimulation(device,
                 initial_res_norm = res_norm + 1e-30
 
             rel_res = res_norm / initial_res_norm
+            final_res = res_norm
             print(f"  Newton {k:3d}: ||F|| = {res_norm:.4e}  (rel = {rel_res:.4e})")
 
             if res_norm <= NewtonTol * initial_res_norm + 1e-14:
+                step_converged = True
                 print(f"    Converged in {k} Newton iterations")
                 newton_iters_per_step.append(k)
                 time_per_newton_iter.append(time.perf_counter() - t0_iter)
@@ -500,6 +508,10 @@ def runSimulation(device,
             newton_iters_per_step.append(NewtonIter)
             print(f"    Reached max Newton iterations ({NewtonIter})")
 
+        # --- store Newton Success and residual ---
+        step_success_history.append(1 if step_converged else 0)
+        final_residual_history.append(final_res)
+
         time_per_omega_step.append(time.perf_counter() - omega_start_time)
         final_res_norms.append(res_norm) 
 
@@ -555,7 +567,12 @@ def runSimulation(device,
     arr_krylov_iters = np.array(krylov_iters_per_newton)
     arr_time_newton  = np.array(time_per_newton_iter)
     arr_time_omega   = np.array(time_per_omega_step)
-    arr_res_norms    = np.array(final_res_norms)
+    # arr_res_norms    = np.array(final_res_norms)
+
+    arr_success = np.array(step_success_history)
+    arr_final_res = np.array(final_residual_history)
+    total_successes = np.sum(arr_success)
+    total_failures = len(arr_success) - total_successes
     
     lin_type = "Automatic Differentiation" if useAD else "Finite Difference"
     
@@ -583,27 +600,32 @@ def runSimulation(device,
   Krylov MaxIt  : {KrylovIter}
   Max BT iters  : {maxBackTrackingIter}
 
+--- Convergence Robustness
+  Total Successes : {total_successes}
+  Total Failures  : {total_failures}
+  Win Rate        : {(total_successes/omega_steps)*100:.2f}%
+
 --- Newton Iters per Outer Step
   Average : {np.mean(arr_newton_iters):.2f}
-  Std Dev : {np.std(arr_newton_iters):.2f} ({safe_pct(np.std(arr_newton_iters), np.mean(arr_newton_iters)):.4f}%)
+  Std Dev : {np.std(arr_newton_iters):.2f} ({np.std(arr_newton_iters) / np.mean(arr_newton_iters):.4f}%)
   Max     : {np.max(arr_newton_iters)}
   Min     : {np.min(arr_newton_iters)}
 
 --- Krylov Iters per Newton Step
   Average : {np.mean(arr_krylov_iters):.2f}
-  Std Dev : {np.std(arr_krylov_iters):.2f} ({safe_pct(np.std(arr_krylov_iters), np.mean(arr_krylov_iters)):.4f}%)
+  Std Dev : {np.std(arr_krylov_iters):.2f} ({np.std(arr_krylov_iters) / np.mean(arr_krylov_iters):.4f}%)
   Max     : {np.max(arr_krylov_iters)}
   Min     : {np.min(arr_krylov_iters)}
 
 --- Time per Newton Iter, s
   Average : {np.mean(arr_time_newton):.4f}
-  Std Dev : {np.std(arr_time_newton):.4f} ({safe_pct(np.std(arr_time_newton), np.mean(arr_time_newton)):.4f}%)
+  Std Dev : {np.std(arr_time_newton):.4f} ({np.std(arr_time_newton) / np.mean(arr_time_newton):.4f}%)
   Max     : {np.max(arr_time_newton):.4f}
   Min     : {np.min(arr_time_newton):.4f}
 
 --- Time per Outer Step, s
   Average : {np.mean(arr_time_omega):.4f}
-  Std Dev : {np.std(arr_time_omega):.4f} ({safe_pct(np.std(arr_time_omega), np.mean(arr_time_omega)):.4f}%)
+  Std Dev : {np.std(arr_time_omega):.4f} ({np.std(arr_time_omega) / np.mean(arr_time_step):.4f}%)
   Max     : {np.max(arr_time_omega):.4f}
   Min     : {np.min(arr_time_omega):.4f}
 
@@ -611,8 +633,14 @@ def runSimulation(device,
   Total Solver Time       : {np.sum(arr_time_omega):.4f}
   Total Wall Time         : {(t_wall_end - t_wall_start):.4f}
 {"="*50}
+
+DATA ARRAYS FOR CSV PARSING:
+ARRAY_SUCCESS_FLAGS: {arr_success.tolist()}
+ARRAY_FINAL_RESIDUALS: {arr_final_res.tolist()}
+ARRAY_NEWTON_ITERS: {arr_newton_iters.tolist()}
+ARRAY_STEP_TIMES: {arr_time_omega.tolist()}
 """
-    print(summary_text)
+    # print(summary_text)
 
     txt_path = f"{prefix}_summary.txt"
     with open(txt_path, "w") as f:

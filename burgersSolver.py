@@ -426,10 +426,13 @@ def runSimulation(device,
     energy_history = [kinetic_energy(u, v, dx, dy)]
     dt_history     = []
     time_history   = []
-    newton_iters_per_step = []
+
+    newton_iters_per_step   = []
     krylov_iters_per_newton = []
-    time_per_newton_iter = []
-    time_per_time_step = []
+    time_per_newton_iter    = []
+    time_per_time_step      = []
+    step_success_history    = []
+    final_residual_history  = []
 
     timeRec = 0.0
 
@@ -447,6 +450,10 @@ def runSimulation(device,
         u_old, v_old = u, v
         u_k,   v_k   = u, v
 
+        # --- track convergence for Perf Analysis ---
+        step_converged = False
+        final_res = 0.0
+
         # -------------------- Newton loop ------------------------------
         for k in range(NewtonIter):
             newton_start_time = time.perf_counter()
@@ -461,9 +468,11 @@ def runSimulation(device,
             F_vec = concatenateJnp(F_u_k, F_v_k)
 
             res_norm = float(jnp.linalg.norm(F_vec))
+            final_res = res_norm
             print(f"  Newton iter {k}: ||F|| = {res_norm:.3e}")
 
             if res_norm <= NewtonNonlinTol:
+                step_converged = True
                 newton_end_time = time.perf_counter()
                 time_per_newton_iter.append(newton_end_time - newton_start_time)
                 newton_iters_per_step.append(k + 1)
@@ -594,6 +603,10 @@ def runSimulation(device,
         else:
             newton_iters_per_step.append(NewtonIter)
 
+        # --- store Newton Success and residual ---
+        step_success_history.append(1 if step_converged else 0)
+        final_residual_history.append(final_res)
+
         u, v = u_k, v_k
         energy_history.append(kinetic_energy(u, v, dx, dy))
         
@@ -631,6 +644,11 @@ def runSimulation(device,
     arr_time_newton = np.array(time_per_newton_iter)
     arr_time_step = np.array(time_per_time_step)
 
+    arr_success = np.array(step_success_history)
+    arr_final_res = np.array(final_residual_history)
+    total_successes = np.sum(arr_success)
+    total_failures = len(arr_success) - total_successes
+
     lin_type = "Automatic Differentiation" if useAD else "Finite Difference"
 
     summary_text = f"""
@@ -653,6 +671,11 @@ def runSimulation(device,
   Newton MaxIt  : {NewtonIter}
   Krylov MaxIt  : {KrylovIter}
   Max BT iters  : {maxBackTrackingIter}
+
+--- Convergence Robustness
+  Total Successes : {total_successes}
+  Total Failures  : {total_failures}
+  Win Rate        : {(total_successes/steps)*100:.2f}%
 
 --- Newton Iters per Outer Step
   Average : {np.mean(arr_newton_iters):.2f}
@@ -682,8 +705,14 @@ def runSimulation(device,
   Total Solver Time       : {np.sum(arr_time_step):.4f}
   Total Wall Time         : {(t_wall_end - t_wall_start):.4f}
 {"="*50}
+
+DATA ARRAYS FOR CSV PARSING:
+ARRAY_SUCCESS_FLAGS: {arr_success.tolist()}
+ARRAY_FINAL_RESIDUALS: {arr_final_res.tolist()}
+ARRAY_NEWTON_ITERS: {arr_newton_iters.tolist()}
+ARRAY_STEP_TIMES: {arr_time_step.tolist()}
 """
-    print(summary_text)
+    # print(summary_text)
 
     txt_path = gif_path.replace('.gif', '_summary.txt')
     with open(txt_path, "w") as f:
