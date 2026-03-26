@@ -625,7 +625,7 @@ def runSimulation(device,
 
 --- Time per Outer Step, s
   Average : {np.mean(arr_time_omega):.4f}
-  Std Dev : {np.std(arr_time_omega):.4f} ({np.std(arr_time_omega) / np.mean(arr_time_step):.4f}%)
+  Std Dev : {np.std(arr_time_omega):.4f} ({np.std(arr_time_omega) / np.mean(arr_time_omega):.4f}%)
   Max     : {np.max(arr_time_omega):.4f}
   Min     : {np.min(arr_time_omega):.4f}
 

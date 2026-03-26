@@ -723,7 +723,7 @@ def runSimulation(device,
   Outer steps   : {steps}
   BC on x       : {BC_X}
   BC on y       : {BC_Y}
-  Simulation    : {SIMULATION_IC}
+  Simulation    : {SIMULATION_TYPE}
   Grid          : ({Nx}, {Ny})
   Krylov solver : {KrylovSolver.upper()}
   Newton tol    : {NewtonNonlinTol}
@@ -875,6 +875,7 @@ if __name__ == "__main__":
         PRECISION=PRECISION,
         BC_X=BC_X,
         BC_Y=BC_Y,
+        SIMULATION_TYPE=SIMULATION_TYPE,
         SIMULATION_IC=SIMULATION_IC,
         SOURCE_TYPE=SOURCE_TYPE,
         verbose=verbose,
