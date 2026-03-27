@@ -3,17 +3,19 @@
  SOLVER PERFORMANCE SUMMARY
 ==================================================
 --- Simulation Options 
+  Hardware      : CPU
   Linearization : Automatic Differentiation
-  Precision     : float64
+  Precision     : float32
   BC on x       : periodic
   BC on y       : periodic
   Simulation    : 4VC
-  Grid          : (512, 512)
+  Grid          : (256, 256)
   Viscosity     : 0.05
   Courant       : 0.7
-  Time steps    : 8000
-  Newton tol    : 1e-06
-  Krylov tol    : 1e-06
+  Time steps    : 1000
+  Krylov solver : BICGSTAB
+  Newton tol    : 0.001
+  Krylov tol    : 0.001
   Max BT iters  : 15
 
 --- Newton Iterations per Time Step
@@ -22,20 +24,26 @@
   Max     : 2
   Min     : 2
 
+--- Krylov Iterations per Newton Step
+  Average : 0.74
+  Std Dev : 0.46 (0.6138%)
+  Max     : 2
+  Min     : 0
+
 --- Time per Newton Iteration, s
-  Average : 0.0042
-  Std Dev : 0.0068 (1.6082%)
-  Max     : 0.6966
-  Min     : 0.0003
+  Average : 0.0040
+  Std Dev : 0.0126 (3.1751%)
+  Max     : 0.5550
+  Min     : 0.0008
 
 --- Time per Outer Time Step, s
-  Average : 0.0090
-  Std Dev : 0.0101 (1.1162%)
-  Max     : 0.8556
-  Min     : 0.0086
+  Average : 0.0087
+  Std Dev : 0.0214 (2.4535%)
+  Max     : 0.6830
+  Min     : 0.0054
 
 --- Overall Time, s
-  Total Solver Time       : 72.2430
-  Total Wall Time         : 88.8825
-  Physical Time Simulated : 4.2167
+  Total Solver Time       : 8.7220
+  Total Wall Time         : 37.6412
+  Physical Time Simulated : 2.1084
 ==================================================
