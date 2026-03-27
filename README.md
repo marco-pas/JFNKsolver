@@ -105,7 +105,7 @@ $$\Delta t = C \cdot \min\left(\frac{\Delta x}{\max|u|},\ \frac{\Delta y}{\max|v
 ### a. Taylor-Green Vortex (TGV)
 
 <p align="center">
-<img src="./output/burgers/examplesBurgers/taylorGreenVortex_.gif" alt="TGV" width="100%">
+<img src="./output/burgers/examplesBurgers/taylorGreenVortex1.gif" alt="TGV" width="100%">
 <br>
 <em>Fig. 1: Taylor-Green Vortex evolution over time.</em>
 </p>
@@ -119,7 +119,7 @@ The TGV is a classical benchmark for viscous flow solvers.
 **Energy Dissipation:**
 
 <p align="center">
-<img src="./output/burgers/examplesBurgers/taylorGreenVortex_energy_.png" alt="TGV energy" width="50%">
+<img src="./output/burgers/examplesBurgers/taylorGreenVortex_energy1.png" alt="TGV energy" width="50%">
 <br>
 <em>Fig. 2: Kinetic energy exponential decay for the Taylor-Green Vortex.</em>
 </p>
@@ -129,7 +129,7 @@ The TGV is a classical benchmark for viscous flow solvers.
 ### b. Double Shear Layer (DSL)
 
 <p align="center">
-<img src="./output/burgers/examplesBurgers/doubleShearLayer_.gif" alt="DSL" width="100%">
+<img src="./output/burgers/examplesBurgers/doubleShearLayer1.gif" alt="DSL" width="100%">
 <br>
 <em>Fig. 3: Double Shear Layer evolution over time.</em>
 </p>
@@ -143,7 +143,7 @@ The DSL features two thin shear interfaces that are Kelvin-Helmholtz unstable, m
 **Energy Dissipation:**
 
 <p align="center">
-<img src="./output/burgers/examplesBurgers/doubleShearLayer_energy_.png" alt="DSL energy" width="50%">
+<img src="./output/burgers/examplesBurgers/doubleShearLayer_energy1.png" alt="DSL energy" width="50%">
 <br>
 <em>Fig. 4: Kinetic energy decay for the Double Shear Layer.</em>
 </p>
@@ -153,7 +153,7 @@ The DSL features two thin shear interfaces that are Kelvin-Helmholtz unstable, m
 ### c. 4-Vortex Collision (4VC)
 
 <p align="center">
-<img src="./output/burgers/examplesBurgers/fourVortexColl_.gif" alt="4VC" width="100%">
+<img src="./output/burgers/examplesBurgers/fourVortexColl1.gif" alt="4VC" width="100%">
 <br>
 <em>Fig. 5: 4-Vortex Collision evolution over time.</em>
 </p>
@@ -176,7 +176,7 @@ The alternating-sign vortices induce mutual attraction and repulsion, producing 
 **Energy Dissipation:**
 
 <p align="center">
-<img src="./output/burgers/examplesBurgers/fourVortexColl_energy_.png" alt="4VC energy" width="50%">
+<img src="./output/burgers/examplesBurgers/fourVortexColl_energy1.png" alt="4VC energy" width="50%">
 <br>
 <em>Fig. 6: Kinetic energy decay for the 4-Vortex Collision.</em>
 </p>
