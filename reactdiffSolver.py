@@ -78,7 +78,7 @@ def configure_precision(precision: str):
 
 
 # -------- increment GIF path --------
-def next_gif_path(base: str = 'rcd_evolution') -> str:
+def next_gif_path(base: str = 'reactdiff') -> str:
     existing = glob.glob(f'{base}_???.gif')
     used = set()
     for f in existing:
@@ -286,7 +286,7 @@ def capture_frame(fig):
     buf.seek(0)
     return Image.open(buf).copy()
 
-def save_gif(frames, path='rcd_evolution_001.gif', fps=6):
+def save_gif(frames, path='reactdiff_001.gif', fps=6):
     if not frames:
         print("No frames captured — nothing to save.")
         return
@@ -314,7 +314,7 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
     print(f"Precision: {PRECISION}  (dtype={dtype})")
 
     os.makedirs(figFolder, exist_ok=True)
-    gif_path = next_gif_path(f'{figFolder}/rcd_evolution')
+    gif_path = next_gif_path(f'{figFolder}/reactdiff')
     print(f"Output GIF: {gif_path}")
 
     # ---- grids ----
@@ -358,6 +358,8 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
     krylov_iters_per_newton = []
     time_per_newton_iter    = []
     time_per_time_step      = []
+    step_success_history    = []
+    final_residual_history  = []
 
     # ----------- TIME LOOP -----------
     print("Starting Time Loop")
@@ -371,6 +373,10 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
         u_old = u
         u_k   = u
 
+        # --- track convergence for Perf Analysis ---
+        step_converged = False
+        final_res = 0.0
+
         # -------------------- Newton loop ------------------------------
         for k in range(NewtonIter):
             newton_start_time = time.perf_counter()
@@ -380,9 +386,11 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
             F_vec   = F_k.ravel()
 
             res_norm = float(jnp.linalg.norm(F_vec))
+            final_res = res_norm
             print(f"  Newton iter {k}: ||F|| = {res_norm:.3e}")
 
             if res_norm <= NewtonNonlinTol:
+                step_converged = True
                 newton_end_time = time.perf_counter()
                 time_per_newton_iter.append(newton_end_time - newton_start_time)
                 newton_iters_per_step.append(k + 1)
@@ -513,6 +521,10 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
         else:
             newton_iters_per_step.append(NewtonIter)
 
+        # --- store Newton Success and residual ---
+        step_success_history.append(1 if step_converged else 0)
+        final_residual_history.append(final_res)
+
         u = u_k
         norm_history.append(l2_norm(u, dx, dy))
 
@@ -544,47 +556,58 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
     arr_time_newton  = np.array(time_per_newton_iter)
     arr_time_step    = np.array(time_per_time_step)
 
+    arr_success = np.array(step_success_history)
+    arr_final_res = np.array(final_residual_history)
+    total_successes = np.sum(arr_success)
+    total_failures = len(arr_success) - total_successes
+
     lin_type = "Automatic Differentiation" if useAD else "Finite Difference"
 
     summary_text = f"""
 {"="*50}
  SOLVER PERFORMANCE SUMMARY
 {"="*50}
---- Simulation Options
+--- Simulation Options 
   Hardware      : {device.upper()}
   Linearization : {lin_type}
-  Krylov solver : {KrylovSolver.upper()}
   Precision     : {PRECISION}
+  Outer loop    : time
+  Outer steps   : {steps}
   BC on x       : {BC_X}
   BC on y       : {BC_Y}
-  Simulation IC : {SIMULATION_IC}
+  Simulation    : {SIMULATION_IC}
   Grid          : ({Nx}, {Ny})
-  Diffusion D   : {D}
-  Courant       : {Courant}
-  Time steps    : {steps}
+  Krylov solver : {KrylovSolver.upper()}
   Newton tol    : {NewtonNonlinTol}
   Krylov tol    : {KrylovTol}
+  Newton MaxIt  : {NewtonIter}
+  Krylov MaxIt  : {KrylovIter}
   Max BT iters  : {maxBackTrackingIter}
 
---- Newton Iterations per Time Step
+--- Convergence Robustness
+  Total Successes : {total_successes}
+  Total Failures  : {total_failures}
+  Win Rate        : {(total_successes/steps)*100:.2f}%
+
+--- Newton Iters per Outer Step
   Average : {np.mean(arr_newton_iters):.2f}
   Std Dev : {np.std(arr_newton_iters):.2f} ({np.std(arr_newton_iters) / np.mean(arr_newton_iters):.4f}%)
   Max     : {np.max(arr_newton_iters)}
   Min     : {np.min(arr_newton_iters)}
 
---- Krylov Iterations per Newton Step
+--- Krylov Iters per Newton Step
   Average : {np.mean(arr_krylov_iters):.2f}
   Std Dev : {np.std(arr_krylov_iters):.2f} ({np.std(arr_krylov_iters) / np.mean(arr_krylov_iters):.4f}%)
   Max     : {np.max(arr_krylov_iters)}
   Min     : {np.min(arr_krylov_iters)}
 
---- Time per Newton Iteration, s
+--- Time per Newton Iter, s
   Average : {np.mean(arr_time_newton):.4f}
   Std Dev : {np.std(arr_time_newton):.4f} ({np.std(arr_time_newton) / np.mean(arr_time_newton):.4f}%)
   Max     : {np.max(arr_time_newton):.4f}
   Min     : {np.min(arr_time_newton):.4f}
 
---- Time per Outer Time Step, s
+--- Time per Outer Step, s
   Average : {np.mean(arr_time_step):.4f}
   Std Dev : {np.std(arr_time_step):.4f} ({np.std(arr_time_step) / np.mean(arr_time_step):.4f}%)
   Max     : {np.max(arr_time_step):.4f}
@@ -593,10 +616,15 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
 --- Overall Time, s
   Total Solver Time       : {np.sum(arr_time_step):.4f}
   Total Wall Time         : {(t_wall_end - t_wall_start):.4f}
-  Physical Time Simulated : {np.sum(np.array(dt_history)):.4f}
 {"="*50}
+
+DATA ARRAYS FOR CSV PARSING:
+ARRAY_SUCCESS_FLAGS: {arr_success.tolist()}
+ARRAY_FINAL_RESIDUALS: {arr_final_res.tolist()}
+ARRAY_NEWTON_ITERS: {arr_newton_iters.tolist()}
+ARRAY_STEP_TIMES: {arr_time_step.tolist()}
 """
-    print(summary_text)
+    # print(summary_text)
 
     txt_path = gif_path.replace('.gif', '_summary.txt')
     with open(txt_path, "w") as f:
@@ -629,14 +657,14 @@ if __name__ == "__main__":
         raise ImportError("You requested '--device gpu', but CuPy or jax.dlpack could not be loaded.")
 
     # ---- Simulation Configuration ---- #
-    SIMULATION_IC   = 'sinusoidal'   # 'gaussian' | 'multi_gaussian' | 'sinusoidal'
+    SIMULATION_IC   = 'multi_gaussian'   # 'gaussian' | 'multi_gaussian' | 'sinusoidal'
     PRECISION       = 'float32'
     BC_X            = DIRICHLET
     BC_Y            = DIRICHLET
 
     # ---- Physical Parameters ---- #
     D               = 0.01
-    steps           = 500
+    steps           = 5000
     Nx, Ny          = 256, 256
     Courant         = 0.7           # keep <= 1 for accurate time integration
 
@@ -661,7 +689,7 @@ if __name__ == "__main__":
         raise ValueError('Choose different Precision')
 
     # ---- Plotting + I/O ---- #
-    plot_steps      = 25
+    plot_steps      = 100
     save_steps      = int(1e7)
     gif_fps         = 15
     displayPlot     = True
