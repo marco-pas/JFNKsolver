@@ -103,6 +103,7 @@ def compile_summaries_to_csv(output_csv="benchmark_results.csv"):
         
     df = pd.DataFrame(all_data)
 
+<<<<<<< Updated upstream
     # --- RANKING AND SORTING LOGIC ---
     if not df.empty:
         def get_sort_group(row):
@@ -163,6 +164,12 @@ if __name__ == "__main__":
 
     scan_time_start = time.perf_counter()
 
+=======
+# ------------ 3. MAIN BENCHMARK EXECUTION ------------ 
+
+if __name__ == "__main__":
+    
+>>>>>>> Stashed changes
     parser = argparse.ArgumentParser(description="Master PDE Benchmark Suite")
     parser.add_argument('--device', type=str, choices=['cpu', 'gpu'], required=True, 
                         help="Target hardware: 'cpu' or 'gpu'")
@@ -297,7 +304,11 @@ if __name__ == "__main__":
                 SIMULATION_J=source,     # <--- Dynamically sets 'dipole' or 'gaussian_center'
                 useAD=ad, 
                 verbose=False,
+<<<<<<< Updated upstream
                 mu0=MU0, eps0=EPS0, omega_start=5.0, omega_stop=200.0, omega_steps=OMEGA_STEPS,
+=======
+                mu0=MU0, eps0=EPS0, omega_start=5.0, omega_stop=200.0, omega_steps=20,
+>>>>>>> Stashed changes
                 Nx=MAXW_N, Ny=MAXW_N, KrylovSolver=solver, 
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER,
                 NewtonTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER, maxBackTrackingIter=MAX_BT_ITER,
