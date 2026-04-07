@@ -44,9 +44,9 @@ def generate_ad_vs_fd_report(csv_file="benchmark_results_cpu.csv"):
     ad_methods = [m for m in time_matrix.columns if m.startswith('AD')]
     fd_methods = [m for m in time_matrix.columns if m.startswith('FD')]
 
-    # =========================================================
+    # @@
     # METRIC 1: Robustness (Global Convergence Rate)
-    # =========================================================
+    # @@
     # Redefined Success: Must not be NaN, and must solve within 100x of the fastest time
     STALL_THRESHOLD = 100.0 
     
@@ -56,9 +56,9 @@ def generate_ad_vs_fd_report(csv_file="benchmark_results_cpu.csv"):
     best_ad_success = ad_success.max()
     avg_fd_success = fd_success.mean()
     
-    # =========================================================
+    # @@
     # METRIC 2: Median Head-to-Head Speedup
-    # =========================================================
+    # @@
     df['Base_Config'] = df['Method'].apply(lambda x: x.split('_', 1)[1])
     
     df_ad = df[df['Method'].str.startswith('AD')].dropna(subset=['Time'])
@@ -74,9 +74,9 @@ def generate_ad_vs_fd_report(csv_file="benchmark_results_cpu.csv"):
         median_speedup = 0.0
         mean_speedup = 0.0
 
-    # =========================================================
+    # @@
     # METRIC 3: Penalized Geometric Mean
-    # =========================================================
+    # @@
     FAILURE_PENALTY = 1000.0
     STALL_THRESHOLD = 50.0  # Anything 50x slower than the winner is a functional failure
     
@@ -97,9 +97,9 @@ def generate_ad_vs_fd_report(csv_file="benchmark_results_cpu.csv"):
     avg_ad_score = geomeans[ad_methods].mean()
     avg_fd_score = geomeans[fd_methods].mean()
 
-    # =========================================================
+    # @@
     # PRINT THE FINAL REPORT
-    # =========================================================
+    # @@
     report = f"""
 {"="*75}
                AD vs. FD: FIGURES OF MERIT SUMMARY
