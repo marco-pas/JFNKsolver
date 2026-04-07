@@ -12,7 +12,7 @@ plt.rcParams.update({
     "font.size": 12
 })
 
-req_tol = 75.0
+req_tol =20.0
 
 # @@
 # 1. TEXT TO CSV PARSER
@@ -256,7 +256,8 @@ def generate_performance_plots(csv_file):
     tau_matrix = time_matrix.divide(min_times, axis=0)
     
     fig, ax = plt.subplots(figsize=(10, 6))
-    tau_vals = np.linspace(1, 3000, int(2e4))
+    # tau_vals = np.linspace(1, 1000, int(5e5))
+    tau_vals = np.logspace(-0.00001, 2.5, int(1e4))
     methods = tau_matrix.columns
 
     for method in methods:
@@ -287,68 +288,111 @@ def generate_performance_plots(csv_file):
     ax.legend(handles, labels, loc='center left', bbox_to_anchor=(1, 0.5), fontsize=9)
     
     ax.grid(True, which="both", ls="--", alpha=0.5)
+    ax.set_ylim(0, 1.0)
     plt.savefig('performance_profile_global.png', dpi=300, bbox_inches='tight')
     plt.close()
 
-    # --- PLOT 2: ReactDiff Bar Chart ---
-    print("  -> Generating Localized ReactDiff Comparison...")
+    # --- PLOT 2: ReactDiff Bar Chart (Filtered for D = 0.01 and Grid = (512, 512)) ---
+    print("  -> Generating Localized ReactDiff Comparison (D=0.01, 512x512 only)...")
+    
+    # Define the exact custom order for the x-axis
+    method_order = [
+        "AD single CG", "AD single BICGSTAB", "AD single GMRES",
+        "AD double CG", "AD double BICGSTAB", "AD double GMRES",
+        "FD double CG", "FD double BICGSTAB", "FD double GMRES",
+        "FD single CG", "FD single BICGSTAB", "FD single GMRES"
+    ]
+    
+    # 1. Filter for ReactDiff
     df_spd = df[df['Problem'].str.contains('ReactDiff', case=False)].copy()
     
+    # 2. Filter specifically for the D=0.01 parameter 
+    if 'Diff' in df_spd.columns:
+        df_spd = df_spd[df_spd['Diff'].astype(str).str.contains('0.01')]
+        
+    # 3. Create a unique subplot name that INCLUDES the Grid size 
+    if 'Grid' in df_spd.columns:
+        df_spd['Subplot_Name'] = df_spd['Problem'] + " " + df_spd['Grid'].astype(str)
+    else:
+        df_spd['Subplot_Name'] = df_spd['Problem']
+        
+    # 4. Filter specifically for the 512x512 grid
+    df_spd = df_spd[df_spd['Subplot_Name'].str.contains('(512, 512)', regex=False)]
+    
     if not df_spd.empty:
-        problems = df_spd['Problem'].unique()
+        problems = df_spd['Subplot_Name'].unique()
         n_problems = len(problems)
         
-        fig, axes = plt.subplots(1, n_problems, figsize=(8 * n_problems, 6))
+        # Keep width reasonable (7 inches per subplot to give bars room to breathe)
+        fig, axes = plt.subplots(1, n_problems, figsize=(7 * n_problems, 6))
         if n_problems == 1: axes = [axes]
             
         for ax, prob in zip(axes, problems):
-            subset = df_spd[df_spd['Problem'] == prob].copy()
-            subset = subset.sort_values('Time')
+            subset = df_spd[df_spd['Subplot_Name'] == prob].copy()
+            
+            # --- CUSTOM SORTING LOGIC ---
+            # Force the Method column into our custom ordered category before sorting
+            subset['Method'] = pd.Categorical(subset['Method'], categories=method_order, ordered=True)
+            subset = subset.sort_values(by=['Method'])
             
             max_valid_time = subset.loc[subset['Time'] < np.inf, 'Time'].max()
             if pd.isna(max_valid_time): max_valid_time = 1.0
-            plot_times = np.where(subset['Time'] == np.inf, max_valid_time * 1.5, subset['Time'])
             
-            bars = ax.bar(subset['Method'], plot_times, edgecolor='black', linewidth=1.2)
+            # Give failed runs a definitive height (2x the max time) so they appear on the graph
+            subset['Plot_Time'] = subset['Time'].replace(np.inf, max_valid_time * 2.0)
+            
+            bars = ax.bar(subset['Method'], subset['Plot_Time'], edgecolor='black', linewidth=1.2)
             
             for bar, method in zip(bars, subset['Method']):
-                parts = method.split(" ")
-                prefix = f"{parts[0]} {parts[1]}"
-                solver = parts[-1]
+                parts = str(method).split(" ") # Ensure it's a string after categorical conversion
+                if len(parts) >= 3:
+                    prefix = f"{parts[0]} {parts[1]}"
+                    solver = parts[-1]
+                else:
+                    prefix = "unknown"
+                    solver = "unknown"
+                    
                 bar.set_facecolor(prefix_to_color.get(prefix, 'gray'))
                 if solver == 'CG': bar.set_hatch('///')
             
-            ic_name = prob.split('_')[-1]
-            ax.set_title(f'Reaction Diffusion: {ic_name.capitalize()}')
+            # Clean up the title
+            clean_name = prob.replace('ReactDiff_', '').replace('(512, 512)', '').strip()
+            clean_name = clean_name.replace('diff:0.01', '').replace('diff: 0.01', '').strip()
+            
+            ax.set_title(f'ReactDiff (D=0.01, Grid=512x512)\n{clean_name}')
+            
             ax.set_ylabel('Total Solver Time (s)')
             ax.set_yscale('log')
             ax.set_xticks(range(len(subset['Method'])))
-            ax.set_xticklabels(subset['Method'], rotation=45, ha='right')
+            ax.set_xticklabels(subset['Method'], rotation=45, ha='right', fontsize=10)
                 
             best_time = subset.loc[subset['Time'] < np.inf, 'Time'].min()
             
+            # Add text labels
             for bar, true_time in zip(bars, subset['Time']):
                 yval = bar.get_height()
-                if true_time == np.inf:
+                if true_time == np.inf or pd.isna(true_time):
                     bar.set_facecolor('#d3d3d3')  
                     bar.set_edgecolor('red')
                     bar.set_linestyle('--')
-                    ax.text(bar.get_x() + bar.get_width()/2, yval * 1.15, 
-                            'FAILED', ha='center', va='bottom', fontsize=7, color='red', fontweight='bold')
+                    ax.text(bar.get_x() + bar.get_width()/2, yval * 1.08, 
+                            'FAILED', ha='center', va='bottom', fontsize=9, color='red', fontweight='bold', rotation=90)
                 else:
                     slowdown = true_time / best_time
-                    label_text = f'{true_time:.2f}s\n({slowdown:.1f}x)'
-                    ax.text(bar.get_x() + bar.get_width()/2, yval * 1.15, 
-                            label_text, ha='center', va='bottom', fontsize=9)
+                    # --- UPDATED TEXT LABEL: Only display the speedup ---
+                    label_text = f'{slowdown:.1f}x'
+                    ax.text(bar.get_x() + bar.get_width()/2, yval * 1.08, 
+                            label_text, ha='center', va='bottom', fontsize=9, rotation=90)
             
             ymin, ymax = ax.get_ylim()
-            ax.set_ylim(ymin, ymax * 3.0)
+            ax.set_ylim(ymin, ymax * 5.0) # Extend y-axis limit to fit the vertical text
             ax.grid(axis='y', linestyle='--', alpha=0.7)
             
         plt.tight_layout()
-        plt.savefig('performance_reactdiff_only.png', dpi=300, bbox_inches='tight')
+        plt.savefig('performance_reactdiff_D0.01_Nx512.png', dpi=300, bbox_inches='tight')
         plt.close()
-
+    else:
+        print("  -> No ReactDiff runs with D=0.01 and Grid=(512, 512) found. Skipping plot.")
 
 # @@
 # 3. TEXT REPORT GENERATOR

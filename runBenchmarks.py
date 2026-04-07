@@ -198,8 +198,8 @@ if __name__ == "__main__":
     cleanup_old_files()
 
     # ---- Global Solver Tolerances (Precision Dependent) ----
-    KRYLOV_TOL  = {'float32': 1e-6, 'float64': 1e-8} # 1e-6 1e-8
-    NEWTON_TOL  = {'float32': 1e-4, 'float64': 1e-6} # 1e-4 1e-6
+    KRYLOV_TOL  = {'float32': 1e-5, 'float64': 1e-7} # 1e-6 1e-8
+    NEWTON_TOL  = {'float32': 1e-3, 'float64': 1e-5} # 1e-4 1e-6
     KRYLOV_ITER = 100
     NEWTON_ITER = 15
     NEWTON_ITER_Maxw = 30
