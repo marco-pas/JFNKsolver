@@ -124,26 +124,53 @@ def compile_summaries_to_csv(output_csv="benchmark_results.csv"):
 
         def get_sort_group(row):
             directory = str(row.get('Directory', '')).lower()
-            config = row['Unified_Config']
+            config = str(row['Unified_Config']).upper()
             
+            # 1. Hunt for the specific physical parameter and grid size in the parsed TXT columns
+            param_suffix = "_default"
+            nx_suffix = ""
+            for col in row.index:
+                col_lower = str(col).lower()
+                
+                # Check for grid size (adjust these strings based on what your solvers actually print)
+                if col_lower in ['nx', 'grid x', 'grid_x', 'n', 'resolution']:
+                    nx_suffix = f"_Nx:{str(row[col]).strip()}"
+
+                # Check for physical parameters
+                elif 'burgers' in directory and col_lower in ['nu', 'viscosity', 'kinematic viscosity']:
+                    param_suffix = f"_nu:{str(row[col]).strip()}"
+                elif 'raddiff' in directory and col_lower in ['eps', 'epsilon', 'opacity']:
+                    param_suffix = f"_eps:{str(row[col]).strip()}"
+                elif 'reactdiff' in directory and col_lower in ['d', 'diff', 'diffusion']:
+                    param_suffix = f"_diff:{str(row[col]).strip()}"
+                elif 'maxw' in directory and col_lower in ['chi', 'kerr']:
+                    param_suffix = f"_chi:{str(row[col]).strip()}"
+
+            full_suffix = f"{param_suffix}{nx_suffix}"
+
+            # 2. Assign the base group + the dynamically found parameters
             if 'burgers' in directory:
-                if 'TGV' in config: return 1
-                elif '4VC' in config: return 2
-                elif 'DSL' in config: return 3
-                else: return 3.5
+                if 'TGV' in config: return f"1.1{full_suffix}"
+                elif '4VC' in config: return f"1.2{full_suffix}"
+                elif 'DSL' in config: return f"1.3{full_suffix}"
+                else: return f"1.9{full_suffix}"
+                
             elif 'raddiff' in directory:
-                if 'SU_OLSON' in config: return 4.1
-                elif 'DYNAMIC' in config: return 4.2
-                else: return 4.5
+                if 'SU_OLSON' in config: return f"2.1{full_suffix}"
+                elif 'DYNAMIC' in config: return f"2.2{full_suffix}"
+                else: return f"2.9{full_suffix}"
+                
             elif 'reactdiff' in directory:
-                if 'gaussian' in config: return 5.1
-                elif 'sinusoidal' in config: return 5.2
-                else: return 5.5
+                if 'GAUSSIAN' in config: return f"3.1{full_suffix}"
+                elif 'SINUSOIDAL' in config: return f"3.2{full_suffix}"
+                else: return f"3.9{full_suffix}"
+                
             elif 'maxw' in directory:
-                if 'gaussian' in config: return 6
-                elif 'dipole' in config: return 7
-                else: return 7.5
-            return 99
+                if 'GAUSSIAN' in config: return f"4.1{full_suffix}"
+                elif 'DIPOLE' in config: return f"4.2{full_suffix}"
+                else: return f"4.9{full_suffix}"
+                
+            return f"9.9{full_suffix}"
             
         df['_sort_group'] = df.apply(get_sort_group, axis=1)
         df = df.sort_values(by=['_sort_group', '_sort_time'], ascending=[True, True])
@@ -171,31 +198,26 @@ if __name__ == "__main__":
     cleanup_old_files()
 
     # ---- Global Solver Tolerances (Precision Dependent) ----
-    KRYLOV_TOL  = {'float32': 1e-4, 'float64': 1e-6} # 1e-6 1e-8
-    NEWTON_TOL  = {'float32': 1e-3, 'float64': 1e-5} # 1e-4 1e-6
+    KRYLOV_TOL  = {'float32': 1e-6, 'float64': 1e-8} # 1e-6 1e-8
+    NEWTON_TOL  = {'float32': 1e-4, 'float64': 1e-6} # 1e-4 1e-6
     KRYLOV_ITER = 100
     NEWTON_ITER = 15
     NEWTON_ITER_Maxw = 30
     MAX_BT_ITER = 15
 
-    # Physical Params
-    NU      = 0.05      # Burgers' eq viscosity
-    EPSILON = 0.1       # Rad diff
-    DIFF    = 0.01      # Diff coeff react diff
+    # Physical Params (Constants that are not being scanned)
     MU0     = 1.0       # Maxw
     EPS0    = 1.0       # Maxw
-    COURANT = 1.5       # solver is implcit
-    OMEGA_STEPS = 2     # Maxwell steps
+    COURANT = 2       # solver is implicit
+    OMEGA_STEPS = 20     # Maxwell steps
 
-    # ---- Hardware Specific Overrides ----
+    # ---- Hardware Specific Overrides & Grid Scans ----
     if args.device == 'cpu':
-        TM_STEPS = 2
-        TM_N     = 128 # 256
-        MAXW_N   = 64 # 128
+        TM_STEPS   = 50
+        GRID_SIZES = [64, 128] # Two distinct grid sizes for CPU
     else:
-        TM_STEPS = 20
-        TM_N     = 512
-        MAXW_N   = 256
+        TM_STEPS   = 50
+        GRID_SIZES = [256, 512] # Two distinct grid sizes for GPU
 
     print(f"\n{'='*50}\nSTARTING BENCHMARK SUITE ON {args.device.upper()}\n{'='*50}\n")
     
@@ -204,18 +226,20 @@ if __name__ == "__main__":
     print("\n--- Queuing Burgers' Equation ---")
     b_precisions = ['float32', 'float64']
     b_ics        = ['TGV', 'DSL', '4VC']
+    b_nus        = [0.1, 0.05, 0.01]
     b_ads        = [True, False]
     b_solvers    = ['gmres', 'bicgstab']
     
-    b_combos = list(itertools.product(b_precisions, b_ics, b_ads, b_solvers))
+    # Added GRID_SIZES to the cartesian product
+    b_combos = list(itertools.product(b_precisions, b_ics, b_nus, b_ads, GRID_SIZES, b_solvers))
     
-    for i, (prec, ic, ad, solver) in enumerate(b_combos):
-        print(f"  [Burgers {i+1}/{len(b_combos)}] {prec} | {ic} | AD:{ad} | {solver.upper()}")
+    for i, (prec, ic, nu_val, ad, n_val, solver) in enumerate(b_combos):
+        print(f"  [Burgers {i+1}/{len(b_combos)}] {prec} | {ic} | NU:{nu_val} | Nx:{n_val} | AD:{ad} | {solver.upper()}")
         try:
             burgersSolver.runSimulation(
                 device=args.device, PRECISION=prec, BC_X='periodic', BC_Y='periodic', SIMULATION_IC=ic,
-                verbose=False, useAD=ad, maxBackTrackingIter=MAX_BT_ITER, nu=NU,
-                steps=TM_STEPS, Nx=TM_N, Ny=TM_N, Courant=COURANT, KrylovSolver=solver,
+                verbose=False, useAD=ad, maxBackTrackingIter=MAX_BT_ITER, nu=nu_val,
+                steps=TM_STEPS, Nx=n_val, Ny=n_val, Courant=COURANT, KrylovSolver=solver, # Replaced TM_N with n_val
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER, 
                 NewtonNonlinTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER,
                 plot_steps=TM_STEPS, gif_fps=10, displayPlot=False, figFolder="output/burgers",
@@ -230,13 +254,15 @@ if __name__ == "__main__":
     print("\n--- Queuing Radiative Diffusion ---")
     rd_precisions = ['float32', 'float64']
     rd_profiles   = ['CLASSIC_SU_OLSON', 'DYNAMIC']
+    rd_eps        = [1.0, 0.1, 0.01]
     rd_ads        = [True, False]
     rd_solvers    = ['gmres', 'bicgstab']
     
-    rd_combos = list(itertools.product(rd_precisions, rd_profiles, rd_ads, rd_solvers))
+    # Added GRID_SIZES to the cartesian product
+    rd_combos = list(itertools.product(rd_precisions, rd_profiles, rd_eps, rd_ads, GRID_SIZES, rd_solvers))
     
-    for i, (prec, profile, ad, solver) in enumerate(rd_combos):
-        print(f"  [RadDiff {i+1}/{len(rd_combos)}] {prec} | {profile} | AD:{ad} | {solver.upper()}")
+    for i, (prec, profile, eps_val, ad, n_val, solver) in enumerate(rd_combos):
+        print(f"  [RadDiff {i+1}/{len(rd_combos)}] {prec} | {profile} | EPS:{eps_val} | Nx:{n_val} | AD:{ad} | {solver.upper()}")
         
         # Map the profile to the correct internal arguments!
         if profile == 'CLASSIC_SU_OLSON':
@@ -254,8 +280,8 @@ if __name__ == "__main__":
             raddiffSolver.runSimulation(
                 device=args.device, PRECISION=prec, BC_X=bc_x, BC_Y=bc_y, SIMULATION_TYPE=profile,
                 SIMULATION_IC=sim_ic, SOURCE_TYPE=src_type, verbose=False, useAD=ad, 
-                maxBackTrackingIter=MAX_BT_ITER, epsilon=EPSILON, Q0=1.0, x_src=0.5, tau_src=float('inf'), 
-                Courant=COURANT, steps=TM_STEPS, Nx=TM_N, Ny=TM_N, KrylovSolver=solver,
+                maxBackTrackingIter=MAX_BT_ITER, epsilon=eps_val, Q0=1.0, x_src=0.5, tau_src=float('inf'), 
+                Courant=COURANT, steps=TM_STEPS, Nx=n_val, Ny=n_val, KrylovSolver=solver, # Replaced TM_N with n_val
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER, 
                 NewtonNonlinTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER,
                 plot_steps=TM_STEPS, gif_fps=10, displayPlot=False, figFolder="output/raddiff",
@@ -263,7 +289,7 @@ if __name__ == "__main__":
             )
         except Exception as e:
             print(f"    -> FAILED: {e}")
-            traceback.print_exc()  # <--- THIS WILL REVEAL THE EXACT ERROR
+            traceback.print_exc()  
 
     
     # ------------ SUITE 3: REACTION DIFFUSION ------------ 
@@ -271,18 +297,20 @@ if __name__ == "__main__":
     print("\n--- Queuing Reaction Diffusion ---")
     rcd_precisions = ['float32', 'float64']
     rcd_ics        = ['gaussian', 'sinusoidal']
+    rcd_diffs      = [0.1, 0.01, 0.001]
     rcd_ads        = [True, False]
-    rcd_solvers    = ['gmres', 'bicgstab', 'cg'] # <--- includes CG!
+    rcd_solvers    = ['gmres', 'bicgstab', 'cg'] 
     
-    rcd_combos = list(itertools.product(rcd_precisions, rcd_ics, rcd_ads, rcd_solvers))
+    # Added GRID_SIZES to the cartesian product
+    rcd_combos = list(itertools.product(rcd_precisions, rcd_ics, rcd_diffs, rcd_ads, GRID_SIZES, rcd_solvers))
     
-    for i, (prec, ic, ad, solver) in enumerate(rcd_combos):
-        print(f"  [ReactDiff {i+1}/{len(rcd_combos)}] {prec} | {ic} | AD:{ad} | {solver.upper()}")
+    for i, (prec, ic, diff_val, ad, n_val, solver) in enumerate(rcd_combos):
+        print(f"  [ReactDiff {i+1}/{len(rcd_combos)}] {prec} | {ic} | DIFF:{diff_val} | Nx:{n_val} | AD:{ad} | {solver.upper()}")
         try:
             reactdiffSolver.runSimulation(
                 device=args.device, PRECISION=prec, BC_X='dirichlet', BC_Y='dirichlet', 
                 SIMULATION_IC=ic, verbose=False, useAD=ad, maxBackTrackingIter=MAX_BT_ITER,
-                D=DIFF, steps=TM_STEPS, Nx=TM_N, Ny=TM_N, Courant=COURANT, KrylovSolver=solver,
+                D=diff_val, steps=TM_STEPS, Nx=n_val, Ny=n_val, Courant=COURANT, KrylovSolver=solver, # Replaced TM_N with n_val
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER, 
                 NewtonNonlinTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER,
                 plot_steps=TM_STEPS, gif_fps=10, displayPlot=False, figFolder="output/reactdiff",
@@ -297,13 +325,15 @@ if __name__ == "__main__":
     print("\n--- Queuing Maxwell Equation ---")
     mx_precisions = ['float32', 'float64']
     mx_sources    = ['dipole', 'gaussian_center']
+    mx_chis       = [0.5, 0.1, 0.05]
     mx_ads        = [True, False]
     mx_solvers    = ['gmres', 'bicgstab']
     
-    mx_combos = list(itertools.product(mx_precisions, mx_sources, mx_ads, mx_solvers))
+    # Added GRID_SIZES to the cartesian product
+    mx_combos = list(itertools.product(mx_precisions, mx_sources, mx_chis, mx_ads, GRID_SIZES, mx_solvers))
     
-    for i, (prec, source, ad, solver) in enumerate(mx_combos):
-        print(f"  [Maxwell {i+1}/{len(mx_combos)}] {prec} | {source} | AD:{ad} | {solver.upper()}")
+    for i, (prec, source, chi_val, ad, n_val, solver) in enumerate(mx_combos):
+        print(f"  [Maxwell {i+1}/{len(mx_combos)}] {prec} | {source} | CHI:{chi_val} | Nx:{n_val} | AD:{ad} | {solver.upper()}")
         try:
             maxwSolver.runSimulation(
                 device=args.device, 
@@ -311,15 +341,16 @@ if __name__ == "__main__":
                 SIMULATION_J=source,     
                 useAD=ad, 
                 verbose=False,
-                mu0=MU0, eps0=EPS0, omega_start=5.0, omega_stop=200.0, omega_steps=OMEGA_STEPS,
-                Nx=MAXW_N, Ny=MAXW_N, KrylovSolver=solver, 
+                mu0=MU0, eps0=EPS0, chi=chi_val,
+                omega_start=5.0, omega_stop=200.0, omega_steps=OMEGA_STEPS,
+                Nx=n_val, Ny=n_val, KrylovSolver=solver, # Replaced MAXW_N with n_val
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER,
                 NewtonTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER_Maxw, maxBackTrackingIter=MAX_BT_ITER,
                 figFolder="output/maxw", save_field_pic=5 
             )
         except Exception as e:
             print(f"    -> FAILED: {e}")
-            traceback.print_exc()  # <--- THIS WILL REVEAL THE EXACT ERROR
+            traceback.print_exc()  
 
     scan_time_end = time.perf_counter()
 

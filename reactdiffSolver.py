@@ -585,6 +585,7 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
   BC on x       : {BC_X}
   BC on y       : {BC_Y}
   Simulation    : {SIMULATION_IC}
+  Diff          : {D}
   Grid          : ({Nx}, {Ny})
   Krylov solver : {KrylovSolver.upper()}
   Newton tol    : {NewtonNonlinTol}

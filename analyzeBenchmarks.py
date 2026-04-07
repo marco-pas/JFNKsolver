@@ -107,12 +107,53 @@ def compile_summaries_to_csv(output_csv="benchmark_results_cpu.csv"):
 
         def get_sort_group(row):
             directory = str(row.get('Directory', '')).lower()
-            config = row['Unified_Config']
-            if 'burgers' in directory: return 1
-            elif 'raddiff' in directory or 'radiation' in directory: return 4
-            elif 'reactdiff' in directory or 'rcd' in directory: return 5
-            elif 'maxw' in directory: return 6
-            return 99
+            config = str(row['Unified_Config']).upper()
+            
+            # 1. Hunt for the specific physical parameter and grid size
+            param_suffix = "_default"
+            nx_suffix = ""
+            for col in row.index:
+                col_lower = str(col).lower()
+                
+                # Check for grid size
+                if col_lower in ['nx', 'grid x', 'grid_x', 'n', 'resolution']:
+                    nx_suffix = f"_Nx:{str(row[col]).strip()}"
+
+                # Check for physical parameters
+                elif 'burgers' in directory and col_lower in ['nu', 'viscosity', 'kinematic viscosity']:
+                    param_suffix = f"_nu:{str(row[col]).strip()}"
+                elif 'raddiff' in directory and col_lower in ['eps', 'epsilon', 'opacity']:
+                    param_suffix = f"_eps:{str(row[col]).strip()}"
+                elif 'reactdiff' in directory and col_lower in ['d', 'diff', 'diffusion']:
+                    param_suffix = f"_diff:{str(row[col]).strip()}"
+                elif 'maxw' in directory and col_lower in ['chi', 'kerr']:
+                    param_suffix = f"_chi:{str(row[col]).strip()}"
+
+            full_suffix = f"{param_suffix}{nx_suffix}"
+
+            # 2. Assign the base group + the dynamically found parameters
+            if 'burgers' in directory:
+                if 'TGV' in config: return f"1.1{full_suffix}"
+                elif '4VC' in config: return f"1.2{full_suffix}"
+                elif 'DSL' in config: return f"1.3{full_suffix}"
+                else: return f"1.9{full_suffix}"
+                
+            elif 'raddiff' in directory:
+                if 'SU_OLSON' in config: return f"2.1{full_suffix}"
+                elif 'DYNAMIC' in config: return f"2.2{full_suffix}"
+                else: return f"2.9{full_suffix}"
+                
+            elif 'reactdiff' in directory:
+                if 'GAUSSIAN' in config: return f"3.1{full_suffix}"
+                elif 'SINUSOIDAL' in config: return f"3.2{full_suffix}"
+                else: return f"3.9{full_suffix}"
+                
+            elif 'maxw' in directory:
+                if 'GAUSSIAN' in config: return f"4.1{full_suffix}"
+                elif 'DIPOLE' in config: return f"4.2{full_suffix}"
+                else: return f"4.9{full_suffix}"
+                
+            return f"9.9{full_suffix}"
             
         df['_sort_group'] = df.apply(get_sort_group, axis=1)
         df = df.sort_values(by=['_sort_group', '_sort_time'], ascending=[True, True])
@@ -144,12 +185,30 @@ def generate_performance_plots(csv_file):
     def make_problem_name(row):
         file_str = str(row.get('File', '')).lower()
         sim_type = str(row.get('Unified_Config', row.get('Simulation', ''))).upper()
+        
+        # We need to extract the exact parameters to make the name unique
+        param_str = ""
+        nx_str = ""
+        for col in row.index:
+            col_lower = str(col).lower()
+            if col_lower in ['nx', 'grid x']: 
+                nx_str = f" Nx:{row[col]}"
+            elif 'burgers' in file_str and col_lower in ['nu', 'viscosity']:
+                param_str = f" nu:{row[col]}"
+            elif 'raddiff' in file_str and col_lower in ['eps', 'epsilon']:
+                param_str = f" eps:{row[col]}"
+            elif 'reactdiff' in file_str and col_lower in ['d', 'diff']:
+                param_str = f" diff:{row[col]}"
+            elif 'maxw' in file_str and col_lower in ['chi', 'kerr']:
+                param_str = f" chi:{row[col]}"
+
         if 'burgers' in file_str: pde = 'Burgers'
         elif 'raddiff' in file_str: pde = 'RadDiff'
         elif 'reactdiff' in file_str: pde = 'ReactDiff'
         elif 'maxw' in file_str: pde = 'Maxwell'
         else: pde = 'Unknown'
-        return f"{pde}_{sim_type}"
+        
+        return f"{pde}_{sim_type}{param_str}{nx_str}"
 
     df['Method'] = df.apply(make_method_name, axis=1)
     df['Problem'] = df.apply(make_problem_name, axis=1)

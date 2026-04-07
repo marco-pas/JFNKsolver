@@ -724,6 +724,7 @@ def runSimulation(device,
   BC on x       : {BC_X}
   BC on y       : {BC_Y}
   Simulation    : {SIMULATION_TYPE}
+  Eps           : {epsilon}
   Grid          : ({Nx}, {Ny})
   Krylov solver : {KrylovSolver.upper()}
   Newton tol    : {NewtonNonlinTol}

@@ -665,6 +665,7 @@ def runSimulation(device,
   BC on x       : {BC_X}
   BC on y       : {BC_Y}
   Simulation    : {SIMULATION_IC}
+  Nu            : {nu}
   Grid          : ({Nx}, {Ny})
   Krylov solver : {KrylovSolver.upper()}
   Newton tol    : {NewtonNonlinTol}
@@ -754,9 +755,9 @@ if __name__ == "__main__":
     
     # ---- Physical Parameters ---- #
     nu              = 0.05 
-    steps           = 300
-    Nx, Ny          = 256, 256
-    Courant         = 0.7
+    steps           = 25
+    Nx, Ny          = 64, 64
+    Courant         = 1
 
     # ---- Burgers Solver ---- #
     KrylovSolver        = 'bicgstab'             # 'gmres', 'bicgstab', or 'cgs' (cgs is GPU only)

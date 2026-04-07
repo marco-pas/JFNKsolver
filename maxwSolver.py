@@ -121,13 +121,13 @@ def make_source(X, Y, source_type, dtype):
 
 
 # ------------ Complex 2N residual — TRUE PEC BOUNDARIES --------------
-@ft_partial(jax.jit, static_argnums=(8, 9))
-def residual_TE(state, omega, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny):
+@ft_partial(jax.jit, static_argnums=(9, 10))
+def residual_TE(state, omega, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny):
     N  = Nx * Ny
     Ex = state[:N].reshape(Nx, Ny)
     Ey = state[N:].reshape(Nx, Ny)
 
-    eps = eps_func(Ex, Ey, eps0)
+    eps = eps_func(Ex, Ey, eps0, chi)
 
     Fx = (  Dxy_op(Ey, dx, dy)
            - Dyy_op(Ex, dy)
@@ -147,15 +147,15 @@ def residual_TE(state, omega, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny):
     return jnp.concatenate([Fx.ravel(), Fy.ravel()])
 
 # -------- Jacobian-vector products ----------------
-@ft_partial(jax.jit, static_argnums=(9, 10))
-def JacobianActionAD_jit(state, perturb, omega, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny):
+@ft_partial(jax.jit, static_argnums=(10, 11))
+def JacobianActionAD_jit(state, perturb, omega, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny):
     def res_fn(s):
-        return residual_TE(s, omega, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
+        return residual_TE(s, omega, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny)
     _, jvp_result = jax.jvp(res_fn, (state,), (perturb,))
     return jvp_result
 
-@ft_partial(jax.jit, static_argnums=(10, 11))
-def JacobianActionFD_jit(state, F0, perturb, omega, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny):
+@ft_partial(jax.jit, static_argnums=(11, 12))
+def JacobianActionFD_jit(state, F0, perturb, omega, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny):
     mach_eps = jnp.finfo(state.real.dtype).eps
     perturb_norm = jnp.linalg.norm(perturb)
     
@@ -165,7 +165,7 @@ def JacobianActionFD_jit(state, F0, perturb, omega, mu0, eps0, Jx, Jy, dx, dy, N
     h = jnp.sqrt(mach_eps) * (1.0 + jnp.linalg.norm(state))
 
     F_pert = residual_TE(state + h * perturb_unit,
-                         omega, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
+                         omega, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny)
     return ((F_pert - F0) / h) * perturb_norm
 
 class KrylovCounter:
@@ -183,7 +183,8 @@ def runSimulation(device,
                   useAD, 
                   verbose,
                   mu0, 
-                  eps0, 
+                  eps0,
+                  chi, 
                   omega_start, 
                   omega_stop, 
                   omega_steps,
@@ -259,17 +260,17 @@ def runSimulation(device,
 
         # ----------- LINEARIZED INITIAL GUESS (Born Approximation) ----------
         print("  --> Computing linear initial guess...")
-        F_lin = residual_TE(state, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
+        F_lin = residual_TE(state, omega_val, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny)
         
         if useAD:
-            def A_matvec_jax_lin(vec): return JacobianActionAD_jit(state, vec, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
+            def A_matvec_jax_lin(vec): return JacobianActionAD_jit(state, vec, omega_val, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny)
         else:
-            def A_matvec_jax_lin(vec): return JacobianActionFD_jit(state, F_lin, vec, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
+            def A_matvec_jax_lin(vec): return JacobianActionFD_jit(state, F_lin, vec, omega_val, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny)
 
         # ----- Hardware-Specific Preconditioner evaluated at E=0 --------
         Ex_c_lin  = state[:N_pts].reshape(Nx, Ny)
         Ey_c_lin  = state[N_pts:].reshape(Nx, Ny)
-        eps_c_lin = eps_func(Ex_c_lin, Ey_c_lin, eps0)
+        eps_c_lin = eps_func(Ex_c_lin, Ey_c_lin, eps0, chi)
         cslp_shift = 1.0 - 0.5j
         eps_precond_lin = eps_c_lin * cslp_shift
 
@@ -361,7 +362,7 @@ def runSimulation(device,
         for k in range(NewtonIter):
             t0_iter = time.perf_counter()
 
-            F        = residual_TE(state, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
+            F        = residual_TE(state, omega_val, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny)
             res_norm = float(jnp.linalg.norm(F))
 
             # if initial_res_norm is None:
@@ -391,14 +392,14 @@ def runSimulation(device,
                 break
 
             if useAD:
-                def A_matvec_jax(vec): return JacobianActionAD_jit(state, vec, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
+                def A_matvec_jax(vec): return JacobianActionAD_jit(state, vec, omega_val, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny)
             else:
-                def A_matvec_jax(vec): return JacobianActionFD_jit(state, F, vec, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
+                def A_matvec_jax(vec): return JacobianActionFD_jit(state, F, vec, omega_val, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny)
 
             # Re-evaluate preconditioner components
             Ex_c  = state[:N_pts].reshape(Nx, Ny)
             Ey_c  = state[N_pts:].reshape(Nx, Ny)
-            eps_c = eps_func(Ex_c, Ey_c, eps0)
+            eps_c = eps_func(Ex_c, Ey_c, eps0, chi)
             eps_precond = eps_c * (1.0 - 0.5j)
 
             diag_Ex = (jnp.full((Nx, Ny), 2.0/dy**2, dtype=complex_dtype) - omega_val**2 * mu0 * eps_precond)
@@ -506,7 +507,7 @@ def runSimulation(device,
             alpha = 1.0
             for _ in range(maxBackTrackingIter):
                 state_try  = state + alpha * delta
-                F_try      = residual_TE(state_try, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
+                F_try      = residual_TE(state_try, omega_val, mu0, eps0, chi, Jx, Jy, dx, dy, Nx, Ny)
                 F_try_norm = float(jnp.linalg.norm(F_try))
                 if F_try_norm <= (1.0 - c1 * alpha) * res_norm:
                     state = state_try
@@ -605,6 +606,7 @@ def runSimulation(device,
   BC on x       : PEC
   BC on y       : PEC
   Simulation    : {SIMULATION_J}
+  Chi           : {chi}
   Grid          : ({Nx}, {Ny})
   Krylov solver : {KrylovSolver.upper()}
   Newton tol    : {NewtonTol}
@@ -713,6 +715,7 @@ if __name__ == "__main__":
     # ---- Physical Parameters ---- #
     mu0                 = 1.0
     eps0                = 1.0
+    chi                 = 0.02
     omega_start         = 200
     omega_stop          = 380
     omega_steps         = 4
@@ -746,6 +749,7 @@ if __name__ == "__main__":
         verbose             = verbose,
         mu0                 = mu0,
         eps0                = eps0,
+        chi                 = chi,
         omega_start         = omega_start,
         omega_stop          = omega_stop,
         omega_steps         = omega_steps,
