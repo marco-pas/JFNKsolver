@@ -12,6 +12,9 @@ plt.rcParams.update({
     "font.size": 12
 })
 
+
+req_tol = 20.0
+
 # @@
 # 1. TEXT TO CSV PARSER
 # @@
@@ -70,7 +73,7 @@ def compile_summaries_to_csv(output_csv="benchmark_results_cpu.csv"):
                 residuals = ast.literal_eval(data_dict["ARRAY_FINAL_RESIDUALS"])
                 
                 # A "Severe Failure" is > 20x the requested tolerance
-                severe_fails = sum(1 for r in residuals if r > (tol * 20.0))
+                severe_fails = sum(1 for r in residuals if r > (tol * req_tol))
                 data_dict["Severe Failures"] = severe_fails
             except Exception as e:
                 data_dict["Severe Failures"] = 0
@@ -191,7 +194,11 @@ def generate_performance_plots(csv_file):
     tau_matrix = time_matrix.divide(min_times, axis=0)
     
     fig, ax = plt.subplots(figsize=(10, 6))
-    tau_vals = np.linspace(1, 500, int(2e4))
+
+    ##### CHANGE HERE #####
+    tau_vals = np.linspace(1, 2000, int(2e4))
+    #######################
+
     methods = tau_matrix.columns
 
     for method in methods:
@@ -269,7 +276,7 @@ def generate_performance_plots(csv_file):
                     bar.set_edgecolor('red')
                     bar.set_linestyle('--')
                     ax.text(bar.get_x() + bar.get_width()/2, yval * 1.15, 
-                            'FAILED', ha='center', va='bottom', fontsize=9, color='red', fontweight='bold')
+                            'FAILED', ha='center', va='bottom', fontsize=7, color='red', fontweight='bold')
                 else:
                     slowdown = true_time / best_time
                     label_text = f'{true_time:.2f}s\n({slowdown:.1f}x)'
@@ -375,22 +382,22 @@ def generate_ad_vs_fd_report(csv_file):
                AD vs. FD: FIGURES OF MERIT SUMMARY
 {"="*75}
 
-1. ROBUSTNESS (Global Convergence Rate)
+1. ROBUSTNESS
    Across the {total_problems} distinct physics problems, Automatic Differentiation 
    was exceptionally stable. The optimal AD configuration achieved a 
    {best_ad_success:.1f}% convergence rate. By contrast, Finite Difference 
    approximations suffered from severe truncation errors; FD methods 
    averaged only a {avg_fd_success:.1f}% success rate of solving within a reasonable 
-   timeframe (100x slowdown margin) before stalling or diverging.
+   accuracy ({int(req_tol)}x accuracy margin).
 
-2. EFFICIENCY (Median Head-to-Head Speedup)
+2. EFFICIENCY
    Even when isolating only the "easy" problems where both methods 
    successfully converged without stalling, the exact Jacobian provided 
    by AD drastically reduced the number of Newton iterations required. 
    AD had a median speed-up of {median_speedup:.2f}x and a mean speed-up 
    of {mean_speedup:.2f}x than FD for the exact same problem setup.
 
-3. THE ULTIMATE GRADE (Penalized Geometric Mean)
+3. THE ULTIMATE GRADE
    Combining both speed and robustness into a single standard benchmark 
    score (where 1.0 is a perfect score and failures/stalls are penalized):
    - Best AD Configuration : {best_ad_score:>7.2f}  (Group Average: {avg_ad_score:.2f})

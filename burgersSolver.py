@@ -153,20 +153,46 @@ def laplacian(f, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
 
     return lap
 
-def advection(f1, f2, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
+# def advection(f1, f2, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
+#     if bc_x == PERIODIC:
+#         df1_dx = (jnp.roll(f1, -1, axis=0) - jnp.roll(f1, 1, axis=0)) / (2*dx)
+#     else:
+#         df1_dx = jnp.zeros_like(f1)
+#         df1_dx = df1_dx.at[1:-1, :].set((f1[2:, :] - f1[:-2, :]) / (2*dx))
+
+#     if bc_y == PERIODIC:
+#         df1_dy = (jnp.roll(f1, -1, axis=1) - jnp.roll(f1, 1, axis=1)) / (2*dy)
+#     else:
+#         df1_dy = jnp.zeros_like(f1)
+#         df1_dy = df1_dy.at[:, 1:-1].set((f1[:, 2:] - f1[:, :-2]) / (2*dy))
+
+#     adv = f1 * df1_dx + f2 * df1_dy
+
+#     if bc_x == DIRICHLET:
+#         adv = adv.at[0,  :].set(0.0)
+#         adv = adv.at[-1, :].set(0.0)
+#     if bc_y == DIRICHLET:
+#         adv = adv.at[:,  0].set(0.0)
+#         adv = adv.at[:, -1].set(0.0)
+
+#     return adv
+
+def advection(f, u, v, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
+    # x-derivative of f
     if bc_x == PERIODIC:
-        df1_dx = (jnp.roll(f1, -1, axis=0) - jnp.roll(f1, 1, axis=0)) / (2*dx)
+        df_dx = (jnp.roll(f, -1, axis=0) - jnp.roll(f, 1, axis=0)) / (2*dx)
     else:
-        df1_dx = jnp.zeros_like(f1)
-        df1_dx = df1_dx.at[1:-1, :].set((f1[2:, :] - f1[:-2, :]) / (2*dx))
+        df_dx = jnp.zeros_like(f)
+        df_dx = df_dx.at[1:-1, :].set((f[2:, :] - f[:-2, :]) / (2*dx))
 
+    # y-derivative of f
     if bc_y == PERIODIC:
-        df1_dy = (jnp.roll(f1, -1, axis=1) - jnp.roll(f1, 1, axis=1)) / (2*dy)
+        df_dy = (jnp.roll(f, -1, axis=1) - jnp.roll(f, 1, axis=1)) / (2*dy)
     else:
-        df1_dy = jnp.zeros_like(f1)
-        df1_dy = df1_dy.at[:, 1:-1].set((f1[:, 2:] - f1[:, :-2]) / (2*dy))
+        df_dy = jnp.zeros_like(f)
+        df_dy = df_dy.at[:, 1:-1].set((f[:, 2:] - f[:, :-2]) / (2*dy))
 
-    adv = f1 * df1_dx + f2 * df1_dy
+    adv = u * df_dx + v * df_dy
 
     if bc_x == DIRICHLET:
         adv = adv.at[0,  :].set(0.0)
@@ -241,11 +267,11 @@ def JacobianActionFD(u, v, F_u, F_v, Nx, Ny, perturb, dt, nu, dx, dy, bc_x=DIRIC
     v_pert = v + eps * dv
 
     lap_u_pert = laplacian(u_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    adv_u_pert = advection(u_pert, v_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
+    adv_u_pert = advection(u_pert, u_pert, v_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
     F_u_pert   = constructF(u_pert, u, adv_u_pert, lap_u_pert, dt, nu)
 
     lap_v_pert = laplacian(v_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    adv_v_pert = advection(v_pert, u_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
+    adv_v_pert = advection(v_pert, u_pert, v_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
     F_v_pert   = constructF(v_pert, v, adv_v_pert, lap_v_pert, dt, nu)
 
     Jv_u = (F_u_pert - F_u) / eps
@@ -258,11 +284,11 @@ def residual_flat(state, u_old, v_old, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny):
     v_ = state[Nx*Ny:].reshape((Nx, Ny))
     
     lap_u_ = laplacian(u_, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    adv_u_ = advection(u_, v_, dx, dy, bc_x=bc_x, bc_y=bc_y)
+    adv_u_ = advection(u_, u_, v_, dx, dy, bc_x=bc_x, bc_y=bc_y)
     F_u_   = constructF(u_, u_old, adv_u_, lap_u_, dt, nu)
-    
+
     lap_v_ = laplacian(v_, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    adv_v_ = advection(v_, u_, dx, dy, bc_x=bc_x, bc_y=bc_y)
+    adv_v_ = advection(v_, u_, v_, dx, dy, bc_x=bc_x, bc_y=bc_y)
     F_v_   = constructF(v_, v_old, adv_v_, lap_v_, dt, nu)
     
     return concatenateJnp(F_u_, F_v_)
@@ -460,8 +486,8 @@ def runSimulation(device,
 
             lap_u_k = laplacian_jit(u_k, dx, dy)
             lap_v_k = laplacian_jit(v_k, dx, dy)
-            adv_u_k = advection_jit(u_k, v_k, dx, dy)          
-            adv_v_k = advection_jit(v_k, u_k, dx, dy)          
+            adv_u_k = advection_jit(u_k, u_k, v_k, dx, dy)          
+            adv_v_k = advection_jit(v_k, u_k, v_k, dx, dy)    
 
             F_u_k = constructF_jit(u_k, u_old, adv_u_k, lap_u_k, dt, nu)
             F_v_k = constructF_jit(v_k, v_old, adv_v_k, lap_v_k, dt, nu)
@@ -577,8 +603,8 @@ def runSimulation(device,
                 
                 lap_u_try = laplacian_jit(u_try, dx, dy)
                 lap_v_try = laplacian_jit(v_try, dx, dy)
-                adv_u_try = advection_jit(u_try, v_try, dx, dy)
-                adv_v_try = advection_jit(v_try, u_try, dx, dy)
+                adv_u_try = advection_jit(u_try, u_try, v_try, dx, dy)
+                adv_v_try = advection_jit(v_try, u_try, v_try, dx, dy)
                 
                 F_u_try = constructF_jit(u_try, u_old, adv_u_try, lap_u_try, dt, nu)
                 F_v_try = constructF_jit(v_try, v_old, adv_v_try, lap_v_try, dt, nu)
@@ -753,7 +779,7 @@ if __name__ == "__main__":
     
     # ---- Physical Parameters ---- #
     nu              = 0.05 
-    steps           = 1000
+    steps           = 6000
     Nx, Ny          = 256, 256
     Courant         = 0.7
 
@@ -778,7 +804,7 @@ if __name__ == "__main__":
         raise ValueError('Choose different Precision')
     
     # ---- Plotting + I/O ---- #
-    plot_steps      = 500   # saves into .gif every "plot_steps" steps
+    plot_steps      = 50   # saves into .gif every "plot_steps" steps
     save_steps      = 1e7   # saves .npy data every "save_steps" steps
     gif_fps         = 20    # frames per sec of .gif
     displayPlot     = True
