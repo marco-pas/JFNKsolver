@@ -153,6 +153,30 @@ def laplacian(f, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
 
     return lap
 
+# def advection(f1, f2, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
+#     if bc_x == PERIODIC:
+#         df1_dx = (jnp.roll(f1, -1, axis=0) - jnp.roll(f1, 1, axis=0)) / (2*dx)
+#     else:
+#         df1_dx = jnp.zeros_like(f1)
+#         df1_dx = df1_dx.at[1:-1, :].set((f1[2:, :] - f1[:-2, :]) / (2*dx))
+
+#     if bc_y == PERIODIC:
+#         df1_dy = (jnp.roll(f1, -1, axis=1) - jnp.roll(f1, 1, axis=1)) / (2*dy)
+#     else:
+#         df1_dy = jnp.zeros_like(f1)
+#         df1_dy = df1_dy.at[:, 1:-1].set((f1[:, 2:] - f1[:, :-2]) / (2*dy))
+
+#     adv = f1 * df1_dx + f2 * df1_dy
+
+#     if bc_x == DIRICHLET:
+#         adv = adv.at[0,  :].set(0.0)
+#         adv = adv.at[-1, :].set(0.0)
+#     if bc_y == DIRICHLET:
+#         adv = adv.at[:,  0].set(0.0)
+#         adv = adv.at[:, -1].set(0.0)
+
+#     return adv
+
 def advection(f, u, v, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
     # x-derivative of f
     if bc_x == PERIODIC:
@@ -179,11 +203,8 @@ def advection(f, u, v, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
 
     return adv
 
-# NEW: 2nd-order Crank-Nicolson Residual Evaluation
-def constructF_CN(vec_k, vec_old, adv_k, lap_k, adv_old, lap_old, dt, nu):
-    spatial_k   = adv_k - nu * lap_k
-    spatial_old = adv_old - nu * lap_old
-    return vec_k - vec_old + 0.5 * dt * (spatial_k + spatial_old)
+def constructF(vec1, vec2, adv, lap, dt, nu):
+    return vec1 - vec2 + dt * (adv - nu * lap)
 
 def concatenateJnp(vec1, vec2):
     return jnp.concatenate([vec1.ravel(), vec2.ravel()])
@@ -215,13 +236,25 @@ def plot_energy(energy_history, dt_history, gif_path):
     print(f"Energy plot saved -> {energy_path}")
 
 #  ------------ Jacobian-vector products (FD and AD) ---------------
-def JacobianActionFD(u, v, F_u, F_v, adv_u_old, lap_u_old, adv_v_old, lap_v_old, Nx, Ny, perturb, dt, nu, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
+def JacobianActionFD(u, v, F_u, F_v, Nx, Ny, perturb, dt, nu, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
     NxNy = Nx * Ny
     du = perturb[:NxNy].reshape((Nx, Ny))
     dv = perturb[NxNy:].reshape((Nx, Ny))
 
+    # @@ problematic part about finite difference!!!!
+    # @@ epsilon is always quite arbitrary in the Gateaux Derivative
+    # @@ differentiate the nonlinear residual equations with respect to the velocity (u,v) at every Newton iteration.
+    #   F1(u_k, u_old) = u_k - u_old + dt ( advection + diffusion ) --> nonlinear function
+    #   F2(v_k, v_old) = v_k - v_old + dt ( advection + diffusion ) --> nonlinear function
+    #   F = ( F1, F2 )
+    #   X = ( x_k, v_k )
+    #   J = dF / dX_k --> we dont really need this matrix, GMRES only needs J * pert_vel to solve the problem
+    #   J * pert_vel can be approximated via FD as lim eps -> 0 of F(X_k - eps * pert_vel ) - F(X_k) / eps
+    # ----> only problem is choosing eps so that is actually makes thing work well
+
     mach_eps = jnp.finfo(u.dtype).eps
     b = jnp.sqrt(mach_eps)
+
     state_norm   = jnp.linalg.norm(jnp.concatenate([u.ravel(), v.ravel()]))
     perturb_norm = jnp.linalg.norm(perturb)
     safe_perturb_norm = jnp.where(perturb_norm > 0.0, perturb_norm, 1.0)
@@ -235,37 +268,36 @@ def JacobianActionFD(u, v, F_u, F_v, adv_u_old, lap_u_old, adv_v_old, lap_v_old,
 
     lap_u_pert = laplacian(u_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
     adv_u_pert = advection(u_pert, u_pert, v_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    # Passed u and v as the "old" state to perfectly cancel out in the Jv formulation
-    F_u_pert   = constructF_CN(u_pert, u, adv_u_pert, lap_u_pert, adv_u_old, lap_u_old, dt, nu)
+    F_u_pert   = constructF(u_pert, u, adv_u_pert, lap_u_pert, dt, nu)
 
     lap_v_pert = laplacian(v_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
     adv_v_pert = advection(v_pert, u_pert, v_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    F_v_pert   = constructF_CN(v_pert, v, adv_v_pert, lap_v_pert, adv_v_old, lap_v_old, dt, nu)
+    F_v_pert   = constructF(v_pert, v, adv_v_pert, lap_v_pert, dt, nu)
 
     Jv_u = (F_u_pert - F_u) / eps
     Jv_v = (F_v_pert - F_v) / eps
 
     return concatenateJnp(Jv_u, Jv_v)
 
-def residual_flat(state, u_old, v_old, adv_u_old, lap_u_old, adv_v_old, lap_v_old, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny):
+def residual_flat(state, u_old, v_old, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny):
     u_ = state[:Nx*Ny].reshape((Nx, Ny))
     v_ = state[Nx*Ny:].reshape((Nx, Ny))
     
     lap_u_ = laplacian(u_, dx, dy, bc_x=bc_x, bc_y=bc_y)
     adv_u_ = advection(u_, u_, v_, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    F_u_   = constructF_CN(u_, u_old, adv_u_, lap_u_, adv_u_old, lap_u_old, dt, nu)
+    F_u_   = constructF(u_, u_old, adv_u_, lap_u_, dt, nu)
 
     lap_v_ = laplacian(v_, dx, dy, bc_x=bc_x, bc_y=bc_y)
     adv_v_ = advection(v_, u_, v_, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    F_v_   = constructF_CN(v_, v_old, adv_v_, lap_v_, adv_v_old, lap_v_old, dt, nu)
+    F_v_   = constructF(v_, v_old, adv_v_, lap_v_, dt, nu)
     
     return concatenateJnp(F_u_, F_v_)
 
-@ft_partial(jax.jit, static_argnums=(13, 14, 15, 16))
-def JacobianActionAD_jit(u_k, v_k, u_old, v_old, adv_u_old, lap_u_old, adv_v_old, lap_v_old, perturb, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny):
+@ft_partial(jax.jit, static_argnums=(9, 10, 11, 12))
+def JacobianActionAD_jit(u_k, v_k, u_old, v_old, perturb, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny):
     state_k = concatenateJnp(u_k, v_k)
     def F_flat(s):
-        return residual_flat(s, u_old, v_old, adv_u_old, lap_u_old, adv_v_old, lap_v_old, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny)
+        return residual_flat(s, u_old, v_old, dt, nu, dx, dy, bc_x, bc_y, Nx, Ny)
     _, jvp_result = jax.jvp(F_flat, (state_k,), (perturb,))
     return jvp_result
 
@@ -329,8 +361,18 @@ def update_plot(img_u, img_v, img_mag, ax_u, ax_v, ax_mag, u, v, step, clims, bc
     img_mag.set_data(np.array(mag))
     ax_mag.set_title(f'||vel|| | Step {step}\n{bc_label}')
 
+    # ax_u.set_title(f'u(x,y) | Step {step}\n{bc_label}', color = 'white')
+    # img_v.set_data(np.array(v))
+    # ax_v.set_title(f'v(x,y) | Step {step}\n{bc_label}', color = 'white')
+    # img_mag.set_data(np.array(mag))
+    # ax_mag.set_title(f'||vel|| | Step {step}\n{bc_label}', color = 'white')
+
+    # plt.savefig(f"data/step_{step}.pdf", dpi=150)
+
     if displayPlot:
         plt.pause(0.01)
+
+    
 
 def capture_frame(fig):
     buf = io.BytesIO()
@@ -407,8 +449,8 @@ def runSimulation(device,
     # ---- JIT compiled components ----
     laplacian_jit  = jax.jit(ft_partial(laplacian,  bc_x=BC_X, bc_y=BC_Y))
     advection_jit  = jax.jit(ft_partial(advection,  bc_x=BC_X, bc_y=BC_Y))
-    constructF_CN_jit = jax.jit(constructF_CN)
-    JacobianActionFD_jit = jax.jit(JacobianActionFD, static_argnums=(8, 9, 15, 16))
+    constructF_jit = jax.jit(constructF)
+    JacobianActionFD_jit = jax.jit(JacobianActionFD, static_argnums=(4, 5, 11, 12))
 
     print(f"BC configuration: x={BC_X}  y={BC_Y}")
     print(f"Grid: {Nx}x{Ny}   dx={dx:.4f}  dy={dy:.4f}")
@@ -445,12 +487,6 @@ def runSimulation(device,
         u_old, v_old = u, v
         u_k,   v_k   = u, v
 
-        # NEW: Pre-calculate spatial terms for the old state (t^n) once per time step
-        lap_u_old = laplacian_jit(u_old, dx, dy)
-        lap_v_old = laplacian_jit(v_old, dx, dy)
-        adv_u_old = advection_jit(u_old, u_old, v_old, dx, dy)
-        adv_v_old = advection_jit(v_old, u_old, v_old, dx, dy)
-
         # --- track convergence for Perf Analysis ---
         step_converged = False
         final_res = 0.0
@@ -464,8 +500,8 @@ def runSimulation(device,
             adv_u_k = advection_jit(u_k, u_k, v_k, dx, dy)          
             adv_v_k = advection_jit(v_k, u_k, v_k, dx, dy)    
 
-            F_u_k = constructF_CN_jit(u_k, u_old, adv_u_k, lap_u_k, adv_u_old, lap_u_old, dt, nu)
-            F_v_k = constructF_CN_jit(v_k, v_old, adv_v_k, lap_v_k, adv_v_old, lap_v_old, dt, nu)
+            F_u_k = constructF_jit(u_k, u_old, adv_u_k, lap_u_k, dt, nu)
+            F_v_k = constructF_jit(v_k, v_old, adv_v_k, lap_v_k, dt, nu)
             F_vec = concatenateJnp(F_u_k, F_v_k)
 
             res_norm = float(jnp.linalg.norm(F_vec))
@@ -482,10 +518,10 @@ def runSimulation(device,
             # Matvec closures capture the current nonlinear state locally
             if useAD:
                 def A_matvec_jax(vec):
-                    return JacobianActionAD_jit(u_k, v_k, u_old, v_old, adv_u_old, lap_u_old, adv_v_old, lap_v_old, vec, dt, nu, dx, dy, BC_X, BC_Y, Nx, Ny)
+                    return JacobianActionAD_jit(u_k, v_k, u_old, v_old, vec, dt, nu, dx, dy, BC_X, BC_Y, Nx, Ny)
             else:
                 def A_matvec_jax(vec):
-                    return JacobianActionFD_jit(u_k, v_k, F_u_k, F_v_k, adv_u_old, lap_u_old, adv_v_old, lap_v_old, Nx, Ny, vec, dt, nu, dx, dy, BC_X, BC_Y)
+                    return JacobianActionFD_jit(u_k, v_k, F_u_k, F_v_k, Nx, Ny, vec, dt, nu, dx, dy, BC_X, BC_Y)
 
             krylov_counter = KrylovCounter()
 
@@ -581,8 +617,8 @@ def runSimulation(device,
                 adv_u_try = advection_jit(u_try, u_try, v_try, dx, dy)
                 adv_v_try = advection_jit(v_try, u_try, v_try, dx, dy)
                 
-                F_u_try = constructF_CN_jit(u_try, u_old, adv_u_try, lap_u_try, adv_u_old, lap_u_old, dt, nu)
-                F_v_try = constructF_CN_jit(v_try, v_old, adv_v_try, lap_v_try, adv_v_old, lap_v_old, dt, nu)
+                F_u_try = constructF_jit(u_try, u_old, adv_u_try, lap_u_try, dt, nu)
+                F_v_try = constructF_jit(v_try, v_old, adv_v_try, lap_v_try, dt, nu)
                 
                 F_try_norm = float(jnp.linalg.norm(concatenateJnp(F_u_try, F_v_try)))
                 

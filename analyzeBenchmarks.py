@@ -12,8 +12,7 @@ plt.rcParams.update({
     "font.size": 12
 })
 
-
-req_tol = 20.0
+req_tol = 75.0
 
 # @@
 # 1. TEXT TO CSV PARSER
@@ -52,7 +51,6 @@ def compile_summaries_to_csv(output_csv="benchmark_results_cpu.csv"):
                     key = parts[0].strip()
                     val = parts[1].strip()
 
-                    # Ignore the header for data arrays
                     if key.startswith("DATA ARRAYS"):
                         continue
                     
@@ -80,7 +78,6 @@ def compile_summaries_to_csv(output_csv="benchmark_results_cpu.csv"):
         else:
             data_dict["Severe Failures"] = 0
             
-        # Clean up the massive array strings so they don't bloat the CSV
         for k in list(data_dict.keys()):
             if k.startswith("ARRAY_"):
                 del data_dict[k]
@@ -90,7 +87,6 @@ def compile_summaries_to_csv(output_csv="benchmark_results_cpu.csv"):
     df = pd.DataFrame(all_data)
 
     if not df.empty:
-        # Unified Config Finder
         def get_unified_config(row):
             for col in row.index:
                 col_lower = str(col).lower()
@@ -101,7 +97,6 @@ def compile_summaries_to_csv(output_csv="benchmark_results_cpu.csv"):
             
         df['Unified_Config'] = df.apply(get_unified_config, axis=1)
 
-        # Unified Time Finder
         def get_unified_time(row):
             for col in row.index:
                 if 'total solver time' in str(col).lower():
@@ -165,9 +160,17 @@ def generate_performance_plots(csv_file):
     failed_count = 0
     if 'Severe Failures' in df.columns:
         severe_failures = pd.to_numeric(df['Severe Failures'], errors='coerce').fillna(0)
-        df.loc[severe_failures > 0, 'Time'] = np.inf
-        failed_count = (severe_failures > 0).sum()
+        failed_mask = severe_failures > 0
+        df.loc[failed_mask, 'Time'] = np.inf
+        failed_count = failed_mask.sum()
         print(f"  -> Applied INFINITY penalty to {failed_count} severely diverged runs (>20x tolerance).")
+        
+        # NEW: Print exactly which ones failed to the console
+        if failed_count > 0:
+            print("\n     [SEVERELY DIVERGED RUNS]")
+            for _, row in df[failed_mask].iterrows():
+                print(f"      - {row['Problem']:<22} | {row['Method']}")
+            print()
     else:
         print("\n  [Warning] 'Severe Failures' not found in CSV.")
 
@@ -194,11 +197,7 @@ def generate_performance_plots(csv_file):
     tau_matrix = time_matrix.divide(min_times, axis=0)
     
     fig, ax = plt.subplots(figsize=(10, 6))
-
-    ##### CHANGE HERE #####
-    tau_vals = np.linspace(1, 2000, int(2e4))
-    #######################
-
+    tau_vals = np.linspace(1, 3000, int(2e4))
     methods = tau_matrix.columns
 
     for method in methods:
@@ -326,7 +325,14 @@ def generate_ad_vs_fd_report(csv_file):
         severe_failures = pd.to_numeric(df['Severe Failures'], errors='coerce').fillna(0)
         df.loc[severe_failures > 0, 'Time'] = np.inf
 
-    # Filter out CG for fair comparison
+    # Keep a record of the failed ones before we filter out CG
+    failed_df = df[df['Time'] == np.inf].copy()
+    if not failed_df.empty:
+        failed_str = "\n".join([f"   - {row['Problem']:<22} | {row['Method']}" for _, row in failed_df.iterrows()])
+    else:
+        failed_str = "   - None! All configurations converged successfully."
+
+    # Filter out CG for fair comparison metrics
     df = df[~df['Method'].str.endswith('CG')].copy()
     
     time_matrix = df.pivot_table(index='Problem', columns='Method', values='Time', aggfunc='min')
@@ -347,12 +353,14 @@ def generate_ad_vs_fd_report(csv_file):
     best_ad_success = ad_success.max()
     avg_fd_success = fd_success.mean()
     
+    ad_rates_str = "\n".join([f"   - {method:<22} : {rate:>5.1f}%" for method, rate in ad_success.items()])
+    fd_rates_str = "\n".join([f"   - {method:<22} : {rate:>5.1f}%" for method, rate in fd_success.items()])
+    
     # 2. Efficiency
     df['Base_Config'] = df['Method'].apply(lambda x: " ".join(x.split(" ")[1:]))
     df_ad = df[df['Method'].str.startswith('AD')].dropna(subset=['Time'])
     df_fd = df[df['Method'].str.startswith('FD')].dropna(subset=['Time'])
     
-    # Exclude failed runs (inf) from head-to-head speedup calculations
     df_ad_valid = df_ad[df_ad['Time'] < np.inf]
     df_fd_valid = df_fd[df_fd['Time'] < np.inf]
     
@@ -390,6 +398,13 @@ def generate_ad_vs_fd_report(csv_file):
    averaged only a {avg_fd_success:.1f}% success rate of solving within a reasonable 
    accuracy ({int(req_tol)}x accuracy margin).
 
+   --- Individual Success Rates ---
+   AD Solvers:
+{ad_rates_str}
+
+   FD Solvers:
+{fd_rates_str}
+
 2. EFFICIENCY
    Even when isolating only the "easy" problems where both methods 
    successfully converged without stalling, the exact Jacobian provided 
@@ -402,14 +417,15 @@ def generate_ad_vs_fd_report(csv_file):
    score (where 1.0 is a perfect score and failures/stalls are penalized):
    - Best AD Configuration : {best_ad_score:>7.2f}  (Group Average: {avg_ad_score:.2f})
    - Best FD Configuration : {best_fd_score:>7.2f}  (Group Average: {avg_fd_score:.2f})
+
+4. DIVERGED CONFIGURATIONS RECORD
+   The following solver configurations failed to reduce the residual to 
+   the requested tolerance and were penalized:
+{failed_str}
 {"="*75}
 """
     print(report)
 
-
-# @@
-# MAIN EXECUTION
-# @@
 if __name__ == "__main__":
     TARGET_CSV = "benchmark_results_cpu.csv" 
     

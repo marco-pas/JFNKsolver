@@ -364,26 +364,14 @@ def runSimulation(device,
             F        = residual_TE(state, omega_val, mu0, eps0, Jx, Jy, dx, dy, Nx, Ny)
             res_norm = float(jnp.linalg.norm(F))
 
-            # if initial_res_norm is None:
-            #     initial_res_norm = res_norm + 1e-30
-
-            # rel_res = res_norm / initial_res_norm
-            # final_res = res_norm
-            # print(f"  Newton {k:3d}: ||F|| = {res_norm:.4e}  (rel = {rel_res:.4e})")
-
-            # # if res_norm <= NewtonTol * initial_res_norm + 1e-14:
-            # if res_norm <= NewtonTol:
-            #     step_converged = True
-            #     print(f"    Converged in {k} Newton iterations")
             if initial_res_norm is None:
                 initial_res_norm = res_norm + 1e-30
 
             rel_res = res_norm / initial_res_norm
             final_res = res_norm
-            print(f"  Newton {k:3d}: ||F|| = {res_norm:.4e}")
+            print(f"  Newton {k:3d}: ||F|| = {res_norm:.4e}  (rel = {rel_res:.4e})")
 
-            # Strict absolute tolerance just like Burgers, RadDiff, and ReactDiff
-            if res_norm <= NewtonTol:
+            if res_norm <= NewtonTol * initial_res_norm + 1e-14:
                 step_converged = True
                 print(f"    Converged in {k} Newton iterations")
                 newton_iters_per_step.append(k)

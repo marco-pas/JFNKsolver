@@ -48,12 +48,11 @@ Inner linear solver options: CG, GMRES, BiCGSTAB.
 PDE:
   d/dt u = D * nabla^2 u - u^3        (scalar field u on a 2D domain)
 
-Crank-Nicolson residual formulation:
-  F(u^{n+1}) = u^{n+1} - u^n - 0.5 * dt * [ (D*lap(u^{n+1}) - (u^{n+1})^3) + (D*lap(u^n) - (u^n)^3) ]
-
 The cubic sink f(u) = u^3 satisfies f'(u) = 3u^2 >= 0 everywhere, which guarantees
-that the Crank-Nicolson Jacobian:
-  J = I - 0.5 * dt * D * L + 0.5 * dt * 3 * (u^k)^2 * I
+that the backward Euler Jacobian:
+
+  J = I - dt * D * L + dt * 3 * (u^k)^2 * I
+
 is Symmetric Positive Definite (SPD) for all dt > 0 and all Newton iterates u^k.
 This is the minimal structural requirement for CG to be a valid linear solver, making
 this PDE the canonical benchmark for comparing CG vs GMRES in a JFNK context.
@@ -153,11 +152,8 @@ def laplacian(f, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
 
     return lap
 
-# NEW: 2nd-order Crank-Nicolson Residual Evaluation
-def constructF_CN(u_k, u_old, lap_u_k, lap_u_old, dt, D):
-    spatial_k   = D * lap_u_k - u_k**3
-    spatial_old = D * lap_u_old - u_old**3
-    return u_k - u_old - 0.5 * dt * (spatial_k + spatial_old)
+def constructF(u_k, u_old, lap_u_k, dt, D):
+    return u_k - u_old - dt * (D * lap_u_k - u_k**3)
 
 def flattenJnp(state_vec, Nx, Ny):
     return state_vec.reshape((Nx, Ny))
@@ -189,7 +185,7 @@ def plot_norm(norm_history, dt_history, gif_path):
 # ------------ Jacobian-vector products (FD and AD) ---------------
 
 # FORMULA 1: Strict Linearity for Conjugate Gradient (CG)
-def JacobianActionFD_CG(u_k, u_old, F_k, lap_u_old, Nx, Ny, perturb, dt, D, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
+def JacobianActionFD_CG(u_k, F_k, Nx, Ny, perturb, dt, D, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
     du = perturb.reshape((Nx, Ny))
 
     # @@ CG requires strictly linear matvec operations.
@@ -204,15 +200,14 @@ def JacobianActionFD_CG(u_k, u_old, F_k, lap_u_old, Nx, Ny, perturb, dt, D, dx, 
 
     u_pert   = u_k + eps * du
     lap_pert = laplacian(u_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    
-    # Pass u_old explicitly so the constant n-th step terms perfectly cancel in the difference
-    F_pert   = constructF_CN(u_pert, u_old, lap_pert, lap_u_old, dt, D)
+    F_pert   = constructF(u_pert, u_k, lap_pert, dt, D)
 
     Jv = (F_pert.ravel() - F_k.ravel()) / eps
     return Jv
 
 # FORMULA 2: General Stability for GMRES / BiCGSTAB
-def JacobianActionFD_General(u_k, u_old, F_k, lap_u_old, Nx, Ny, perturb, dt, D, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
+# def JacobianActionFD_General(u_k, F_k, Nx, Ny, perturb, dt, D, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
+def JacobianActionFD_General(u_k, u_old, F_k, Nx, Ny, perturb, dt, D, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
     du = perturb.reshape((Nx, Ny))
 
     # @@ Standard Brown/Saad directional derivative formula.
@@ -231,24 +226,25 @@ def JacobianActionFD_General(u_k, u_old, F_k, lap_u_old, Nx, Ny, perturb, dt, D,
 
     u_pert   = u_k + eps * du
     lap_pert = laplacian(u_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    F_pert   = constructF_CN(u_pert, u_old, lap_pert, lap_u_old, dt, D)
+    # F_pert   = constructF(u_pert, u_k, lap_pert, dt, D)
+    F_pert   = constructF(u_pert, u_old, lap_pert, dt, D)
 
     Jv = (F_pert.ravel() - F_k.ravel()) / eps
     return Jv
 
 # Flat residual evaluator for the AD graph
-def residual_flat(state, u_old, lap_u_old, dt, D, dx, dy, bc_x, bc_y, Nx, Ny):
+def residual_flat(state, u_old, dt, D, dx, dy, bc_x, bc_y, Nx, Ny):
     u_   = state.reshape((Nx, Ny))
     lap_ = laplacian(u_, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    F_   = constructF_CN(u_, u_old, lap_, lap_u_old, dt, D)
+    F_   = constructF(u_, u_old, lap_, dt, D)
     return F_.ravel()
 
 # Jitted AD Jacobian-Vector Product
-@ft_partial(jax.jit, static_argnums=(8, 9, 10, 11))
-def JacobianActionAD_jit(u_k, u_old, lap_u_old, perturb, dt, D, dx, dy, bc_x, bc_y, Nx, Ny):
+@ft_partial(jax.jit, static_argnums=(7, 8, 9, 10))
+def JacobianActionAD_jit(u_k, u_old, perturb, dt, D, dx, dy, bc_x, bc_y, Nx, Ny):
     state_k = u_k.ravel()
     def F_flat(s):
-        return residual_flat(s, u_old, lap_u_old, dt, D, dx, dy, bc_x, bc_y, Nx, Ny)
+        return residual_flat(s, u_old, dt, D, dx, dy, bc_x, bc_y, Nx, Ny)
     _, jvp_result = jax.jvp(F_flat, (state_k,), (perturb,))
     return jvp_result
 
@@ -347,9 +343,9 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
         print(f"FD Mode: Brown/Saad Formulation ({KrylovSolver.upper()} optimal)")
 
     # ---- JIT compiled components ----
-    laplacian_jit     = jax.jit(ft_partial(laplacian, bc_x=BC_X, bc_y=BC_Y))
-    constructF_CN_jit = jax.jit(constructF_CN)
-    JacobianActionFD_jit = jax.jit(fd_function, static_argnums=(4, 5)) # Nx, Ny
+    laplacian_jit  = jax.jit(ft_partial(laplacian,   bc_x=BC_X, bc_y=BC_Y))
+    constructF_jit = jax.jit(constructF)
+    JacobianActionFD_jit = jax.jit(fd_function, static_argnums=(2, 3)) # Nx, Ny
 
     print(f"BC configuration: x={BC_X}  y={BC_Y}")
     print(f"Grid: {Nx}x{Ny}   dx={dx:.4f}  dy={dy:.4f}")
@@ -379,9 +375,6 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
         u_old = u
         u_k   = u
 
-        # Pre-calculate spatial terms for the old state once per time step
-        lap_u_old = laplacian_jit(u_old, dx, dy)
-
         # --- track convergence for Perf Analysis ---
         step_converged = False
         final_res = 0.0
@@ -391,7 +384,7 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
             newton_start_time = time.perf_counter()
 
             lap_u_k = laplacian_jit(u_k, dx, dy)
-            F_k     = constructF_CN_jit(u_k, u_old, lap_u_k, lap_u_old, dt, D)
+            F_k     = constructF_jit(u_k, u_old, lap_u_k, dt, D)
             F_vec   = F_k.ravel()
 
             res_norm = float(jnp.linalg.norm(F_vec))
@@ -408,10 +401,11 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
             # --- JAX matvec closures capturing the current Newton state ---
             if useAD:
                 def A_matvec_jax(vec):
-                    return JacobianActionAD_jit(u_k, u_old, lap_u_old, vec, dt, D, dx, dy, BC_X, BC_Y, Nx, Ny)
+                    return JacobianActionAD_jit(u_k, u_old, vec, dt, D, dx, dy, BC_X, BC_Y, Nx, Ny)
             else:
                 def A_matvec_jax(vec):
-                    return JacobianActionFD_jit(u_k, u_old, F_k, lap_u_old, Nx, Ny, vec, dt, D, dx, dy)
+                    # return JacobianActionFD_jit(u_k, F_k, Nx, Ny, vec, dt, D, dx, dy)
+                    return JacobianActionFD_jit(u_k, u_old, F_k, Nx, Ny, vec, dt, D, dx, dy)
 
             krylov_counter = KrylovCounter()
 
@@ -508,7 +502,7 @@ def runSimulation(device, PRECISION, BC_X, BC_Y, SIMULATION_IC, verbose, useAD, 
                 u_try = apply_BC(u_try, BC_X, BC_Y)
 
                 lap_try = laplacian_jit(u_try, dx, dy)
-                F_try   = constructF_CN_jit(u_try, u_old, lap_try, lap_u_old, dt, D)
+                F_try   = constructF_jit(u_try, u_old, lap_try, dt, D)
 
                 F_try_norm = float(jnp.linalg.norm(F_try.ravel()))
 

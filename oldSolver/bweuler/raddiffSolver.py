@@ -51,9 +51,9 @@ with EOS  e = alpha * T^4  => epsilon = alpha / (4a).
 
 State vector w = [U, V]^T — identical 2-component structure to the Burgers (u, v) system.
 
-Crank-Nicolson residual (averaging spatial/coupling/source at n and n+1):
-  F1 = U^{n+1} - U^n - 0.5 * dt * [ (1/3)*lap(U^{n+1}) - (U^{n+1} - V^{n+1}) + Q^{n+1} + (1/3)*lap(U^n) - (U^n - V^n) + Q^n ] = 0
-  F2 = V^{n+1} - V^n - 0.5 * dt * epsilon * [ (U^{n+1} - V^{n+1}) + (U^n - V^n) ] = 0
+Backward Euler residual (all RHS at n+1):
+  F1 = U^{n+1} - U^n - dt * [ (1/3)*lap(U^{n+1}) - (U^{n+1} - V^{n+1}) + Q^{n+1} ] = 0
+  F2 = V^{n+1} - V^n - dt * epsilon * (U^{n+1} - V^{n+1}) = 0
 
 Coupling notes:
   - F1 contains the diffusion operator (1/3)*lap and the emission/absorption term (U-V).
@@ -210,18 +210,16 @@ def laplacian(f, dx, dy, bc_x=DIRICHLET, bc_y=DIRICHLET):
 
     return lap
 
-# NEW: 2nd-order Crank-Nicolson Residual Evaluations
-def constructF_rad_CN(U_k, U_old, V_k, V_old, lap_U_k, lap_U_old, dt, Q_k, Q_old):
-    # Radiation energy residual F1 = 0
-    spatial_k   = 1.0/3.0 * lap_U_k - (U_k - V_k) + Q_k
-    spatial_old = 1.0/3.0 * lap_U_old - (U_old - V_old) + Q_old
-    return U_k - U_old - 0.5 * dt * (spatial_k + spatial_old)
+def constructF_rad(U_k, U_old, V_k, lap_U_k, dt, Q):
+    # Radiation energy residual  F1 = 0
+    # Backward Euler: U_k - U_old - dt*[ (1/3)*lap(U_k) - (U_k - V_k) + Q ] = 0
+    # Diffusion coefficient D = 1/3 is built in (dimensionless Su-Olson form).
+    return U_k - U_old - dt * (1.0/3.0 * lap_U_k - (U_k - V_k) + Q)
 
-def constructF_mat_CN(V_k, V_old, U_k, U_old, dt, epsilon):
-    # Material energy residual F2 = 0
-    coupling_k   = epsilon * (U_k - V_k)
-    coupling_old = epsilon * (U_old - V_old)
-    return V_k - V_old - 0.5 * dt * (coupling_k + coupling_old)
+def constructF_mat(V_k, V_old, U_k, dt, epsilon):
+    # Material energy residual  F2 = 0  — no spatial operator, purely local coupling.
+    # Backward Euler: V_k - V_old - dt * epsilon * (U_k - V_k) = 0
+    return V_k - V_old - dt * epsilon * (U_k - V_k)
 
 def concatenateJnp(vec1, vec2):
     return jnp.concatenate([vec1.ravel(), vec2.ravel()])
@@ -257,10 +255,17 @@ def plot_energy(energy_history, dt_history, gif_path):
 
 # ------------ Jacobian-vector products (FD and AD) ---------------
 
-def JacobianActionFD(U_k, V_k, F_U, F_V, lap_U_old, Nx, Ny, perturb, dt, epsilon, Q_k, Q_old, dx, dy, bc_x=DIRICHLET, bc_y=PERIODIC):
+def JacobianActionFD(U_k, V_k, F_U, F_V, Nx, Ny, perturb, dt, epsilon, Q, dx, dy, bc_x=DIRICHLET, bc_y=PERIODIC):
     NxNy = Nx * Ny
     dU = perturb[:NxNy].reshape((Nx, Ny))
     dV = perturb[NxNy:].reshape((Nx, Ny))
+
+    # @@ Gateaux derivative approximation of the Jacobian-vector product:
+    # @@   J(w_k) * p  ~=  [ F(w_k + eps*p) - F(w_k) ] / eps
+    # @@ where w_k = (U_k, V_k) is the current Newton iterate.
+    # @@ U_old / V_old are fixed constants and cancel exactly in the difference,
+    # @@ so they do not need to be passed here.
+    # @@ Only difficulty: choosing eps to balance truncation and cancellation error.
 
     mach_eps = jnp.finfo(U_k.dtype).eps
     b = jnp.sqrt(mach_eps)
@@ -276,11 +281,10 @@ def JacobianActionFD(U_k, V_k, F_U, F_V, lap_U_old, Nx, Ny, perturb, dt, epsilon
     U_pert = U_k + eps * dU
     V_pert = V_k + eps * dV
 
-    # Perturbed residuals 
-    # (U_old = U_k, V_old = V_k to perfectly cancel the non-differentiable old terms in the difference)
+    # Perturbed residuals (U_old = U_k, V_old = V_k — cancel in the difference)
     lap_U_pert = laplacian(U_pert, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    F_U_pert   = constructF_rad_CN(U_pert, U_k, V_pert, V_k, lap_U_pert, lap_U_old, dt, Q_k, Q_old)
-    F_V_pert   = constructF_mat_CN(V_pert, V_k, U_pert, U_k, dt, epsilon)
+    F_U_pert   = constructF_rad(U_pert, U_k, V_pert, lap_U_pert, dt, Q)
+    F_V_pert   = constructF_mat(V_pert, V_k, U_pert, dt, epsilon)
 
     Jv_U = (F_U_pert - F_U) / eps
     Jv_V = (F_V_pert - F_V) / eps
@@ -288,22 +292,22 @@ def JacobianActionFD(U_k, V_k, F_U, F_V, lap_U_old, Nx, Ny, perturb, dt, epsilon
     return concatenateJnp(Jv_U, Jv_V)
 
 # Flat residual evaluator for the AD graph
-def residual_flat(state, U_old, V_old, lap_U_old, dt, epsilon, Q_k, Q_old, dx, dy, bc_x, bc_y, Nx, Ny):
+def residual_flat(state, U_old, V_old, dt, epsilon, Q, dx, dy, bc_x, bc_y, Nx, Ny):
     U_ = state[:Nx*Ny].reshape((Nx, Ny))
     V_ = state[Nx*Ny:].reshape((Nx, Ny))
 
     lap_U_ = laplacian(U_, dx, dy, bc_x=bc_x, bc_y=bc_y)
-    F_U_   = constructF_rad_CN(U_, U_old, V_, V_old, lap_U_, lap_U_old, dt, Q_k, Q_old)
-    F_V_   = constructF_mat_CN(V_, V_old, U_, U_old, dt, epsilon)
+    F_U_   = constructF_rad(U_, U_old, V_, lap_U_, dt, Q)
+    F_V_   = constructF_mat(V_, V_old, U_, dt, epsilon)
 
     return concatenateJnp(F_U_, F_V_)
 
 # Jitted AD Jacobian-Vector Product
-@ft_partial(jax.jit, static_argnums=(12, 13, 14, 15))
-def JacobianActionAD_jit(U_k, V_k, U_old, V_old, lap_U_old, perturb, dt, epsilon, Q_k, Q_old, dx, dy, bc_x, bc_y, Nx, Ny):
+@ft_partial(jax.jit, static_argnums=(10, 11, 12, 13))
+def JacobianActionAD_jit(U_k, V_k, U_old, V_old, perturb, dt, epsilon, Q, dx, dy, bc_x, bc_y, Nx, Ny):
     state_k = concatenateJnp(U_k, V_k)
     def F_flat(s):
-        return residual_flat(s, U_old, V_old, lap_U_old, dt, epsilon, Q_k, Q_old, dx, dy, bc_x, bc_y, Nx, Ny)
+        return residual_flat(s, U_old, V_old, dt, epsilon, Q, dx, dy, bc_x, bc_y, Nx, Ny)
     _, jvp_result = jax.jvp(F_flat, (state_k,), (perturb,))
     return jvp_result
 
@@ -397,7 +401,6 @@ def runSimulation(device,
                   PRECISION,
                   BC_X,
                   BC_Y,
-                  SIMULATION_TYPE,
                   SIMULATION_IC,
                   SOURCE_TYPE,
                   verbose,
@@ -454,21 +457,21 @@ def runSimulation(device,
     U, V = U0, V0
 
     # ---- bake BC flags into spatial operators; JIT-compile ------------
-    laplacian_jit         = jax.jit(ft_partial(laplacian, bc_x=BC_X, bc_y=BC_Y))
-    constructF_rad_CN_jit = jax.jit(constructF_rad_CN)
-    constructF_mat_CN_jit = jax.jit(constructF_mat_CN)
+    laplacian_jit      = jax.jit(ft_partial(laplacian,      bc_x=BC_X, bc_y=BC_Y))
+    constructF_rad_jit = jax.jit(constructF_rad)
+    constructF_mat_jit = jax.jit(constructF_mat)
 
-    # static_argnums: Nx(5), Ny(6), bc_x(14), bc_y(15)
-    JacobianActionFD_jit = jax.jit(JacobianActionFD, static_argnums=(5, 6, 14, 15))
+    # static_argnums: Nx(4), Ny(5), bc_x(12), bc_y(13)
+    JacobianActionFD_jit = jax.jit(JacobianActionFD, static_argnums=(4, 5, 12, 13))
 
-    def _scipy_matvec_fn(U_k, V_k, lap_U_old, Nx, Ny, p, dt, epsilon, Q_k, Q_old, dx, dy, bc_x, bc_y):
+    def _scipy_matvec_fn(U_k, V_k, Nx, Ny, p, dt, epsilon, Q, dx, dy, bc_x, bc_y):
         lap_U_b = laplacian(U_k, dx, dy, bc_x=bc_x, bc_y=bc_y)
-        F_U_b   = constructF_rad_CN(U_k, U_k, V_k, V_k, lap_U_b, lap_U_old, dt, Q_k, Q_old)
-        F_V_b   = constructF_mat_CN(V_k, V_k, U_k, U_k, dt, epsilon)
-        return JacobianActionFD(U_k, V_k, F_U_b, F_V_b, lap_U_old, Nx, Ny, p, dt, epsilon, Q_k, Q_old, dx, dy, bc_x=bc_x, bc_y=bc_y)
+        F_U_b   = constructF_rad(U_k, U_k, V_k, lap_U_b, dt, Q)
+        F_V_b   = constructF_mat(V_k, V_k, U_k, dt, epsilon)
+        return JacobianActionFD(U_k, V_k, F_U_b, F_V_b, Nx, Ny, p, dt, epsilon, Q, dx, dy, bc_x=bc_x, bc_y=bc_y)
 
-    # static_argnums: Nx(3), Ny(4), bc_x(12), bc_y(13)
-    JacobianActionScipy_jit = jax.jit(_scipy_matvec_fn, static_argnums=(3, 4, 12, 13))
+    # static_argnums: Nx(2), Ny(3), bc_x(10), bc_y(11)
+    JacobianActionScipy_jit = jax.jit(_scipy_matvec_fn, static_argnums=(2, 3, 10, 11))
 
     print(f"BC configuration: x={BC_X}  y={BC_Y}")
     print(f"Grid: {Nx}x{Ny}   dx={dx:.4f}  dy={dy:.4f}")
@@ -502,15 +505,11 @@ def runSimulation(device,
         dt = calc_dt(dx, dy, epsilon, Courant)
         dt_history.append(float(dt))
 
-        # Sources evaluated at tau^n and tau^{n+1}
-        Q_old = get_source_term(SOURCE_TYPE, X, Y, tau, Q0, x_src, tau_src, x_center, dtype)
-        Q_k   = get_source_term(SOURCE_TYPE, X, Y, tau + dt, Q0, x_src, tau_src, x_center, dtype)
+        # Source evaluated at tau^{n+1} (consistent with backward Euler)
+        Q = get_source_term(SOURCE_TYPE, X, Y, tau + dt, Q0, x_src, tau_src, x_center, dtype)
 
         U_old, V_old = U, V
         U_k,   V_k   = U, V
-
-        # Pre-calculate spatial terms for the old state once per time step
-        lap_U_old = laplacian_jit(U_old, dx, dy)
 
         # --- track convergence for Perf Analysis ---
         step_converged = False
@@ -522,8 +521,8 @@ def runSimulation(device,
 
             lap_U_k = laplacian_jit(U_k, dx, dy)
 
-            F_U_k = constructF_rad_CN_jit(U_k, U_old, V_k, V_old, lap_U_k, lap_U_old, dt, Q_k, Q_old)
-            F_V_k = constructF_mat_CN_jit(V_k, V_old, U_k, U_old, dt, epsilon)
+            F_U_k = constructF_rad_jit(U_k, U_old, V_k, lap_U_k, dt, Q)
+            F_V_k = constructF_mat_jit(V_k, V_old, U_k, dt, epsilon)
             F_vec = concatenateJnp(F_U_k, F_V_k)
 
             res_norm = float(jnp.linalg.norm(F_vec))
@@ -540,10 +539,11 @@ def runSimulation(device,
             # Matvec closures capture the current nonlinear state locally
             if useAD:
                 def A_matvec_jax(vec):
-                    return JacobianActionAD_jit(U_k, V_k, U_old, V_old, lap_U_old, vec, dt, epsilon, Q_k, Q_old, dx, dy, BC_X, BC_Y, Nx, Ny)
+                    return JacobianActionAD_jit(U_k, V_k, U_old, V_old, vec, dt, epsilon, Q, dx, dy, BC_X, BC_Y, Nx, Ny)
             else:
                 def A_matvec_jax(vec):
-                    return JacobianActionScipy_jit(U_k, V_k, lap_U_old, Nx, Ny, vec, dt, epsilon, Q_k, Q_old, dx, dy, BC_X, BC_Y)
+                    # Passing U_k and V_k as the 'old' terms for the FD evaluation
+                    return JacobianActionScipy_jit(U_k, V_k, Nx, Ny, vec, dt, epsilon, Q, dx, dy, BC_X, BC_Y)
 
             krylov_counter = KrylovCounter()
 
@@ -635,8 +635,8 @@ def runSimulation(device,
                 V_try = apply_BC(V_try, BC_X, BC_Y)
 
                 lap_U_try = laplacian_jit(U_try, dx, dy)
-                F_U_try   = constructF_rad_CN_jit(U_try, U_old, V_try, V_old, lap_U_try, lap_U_old, dt, Q_k, Q_old)
-                F_V_try   = constructF_mat_CN_jit(V_try, V_old, U_try, U_old, dt, epsilon)
+                F_U_try   = constructF_rad_jit(U_try, U_old, V_try, lap_U_try, dt, Q)
+                F_V_try   = constructF_mat_jit(V_try, V_old, U_try, dt, epsilon)
 
                 F_try_norm = float(jnp.linalg.norm(concatenateJnp(F_U_try, F_V_try)))
 

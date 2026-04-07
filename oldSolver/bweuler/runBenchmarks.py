@@ -175,7 +175,6 @@ if __name__ == "__main__":
     NEWTON_TOL  = {'float32': 1e-3, 'float64': 1e-5} # 1e-4 1e-6
     KRYLOV_ITER = 100
     NEWTON_ITER = 15
-    NEWTON_ITER_Maxw = 30
     MAX_BT_ITER = 15
 
     # Physical Params
@@ -314,7 +313,7 @@ if __name__ == "__main__":
                 mu0=MU0, eps0=EPS0, omega_start=5.0, omega_stop=200.0, omega_steps=OMEGA_STEPS,
                 Nx=MAXW_N, Ny=MAXW_N, KrylovSolver=solver, 
                 KrylovTol=KRYLOV_TOL[prec], KrylovIter=KRYLOV_ITER,
-                NewtonTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER_Maxw, maxBackTrackingIter=MAX_BT_ITER,
+                NewtonTol=NEWTON_TOL[prec], NewtonIter=NEWTON_ITER, maxBackTrackingIter=MAX_BT_ITER,
                 figFolder="output/maxw", save_field_pic=5 
             )
         except Exception as e:
